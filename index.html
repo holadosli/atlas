@@ -26,8 +26,14 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
      него — см. комментарий у AUDIO_MAP. Запрос уходит ПЕРВЫМ, до three.js,
      текстуры Земли и шрифтов: иначе на медленной раздаче он встаёт в очередь
      за ними и первый трек успевает начаться немым. -->
-<script>window.__DATA = ['audio-map','artist-pics'].map(function(n){
-  return fetch('assets/data/'+n+'.json').then(function(r){ return r.ok ? r.json() : null; })
+<script>/* ⚠️ DATA_VER обязателен, и это не перестраховка (2026-09-07). Ключ карты —
+     «Артист|Трек», то есть карта и каталог обязаны меняться ОДНОВРЕМЕННО. Стоило один
+     раз переписать названия, как браузер отдал из кеша вчерашнюю карту к новому
+     каталогу — совпадений не нашлось, и 38 треков молча стали немыми.
+     Меняются данные в assets/data — поднимать дату здесь же. */
+window.__DATA_VER = '2026-09-07';
+window.__DATA = ['audio-map','artist-pics'].map(function(n){
+  return fetch('assets/data/'+n+'.json?v='+window.__DATA_VER).then(function(r){ return r.ok ? r.json() : null; })
                                         .catch(function(){ return null; });
 });</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -54,11 +60,33 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
     font-weight:400; font-style:normal; font-display:swap; }
   @font-face{ font-family:'Instrument Serif'; src:url('assets/fonts/instrument-serif-latin-400-italic.woff2') format('woff2');
     font-weight:400; font-style:italic; font-display:swap; }
+  /* ⚠️ Кириллического донора здесь НЕТ, и это осознанно (2026-09-07). У Instrument
+     Serif кириллицы не существует вовсе, поэтому 38 названий из советского пласта
+     каталога уходили в системный фолбэк. День это закрывал донор на unicode-range
+     (числа лежат в истории git: size-adjust 121%, wdth 87.5), но решение Николая —
+     засечный в продукте должен быть ОДИН. Вместо донора кириллица выведена из
+     засечного: название трека и имя артиста набираются интерфейсным --ui
+     (Avenir Next, фолбэк Inter) — у обоих кириллица есть, проверено замером.
+     Instrument Serif остаётся там, где текст заведомо латинский: вордмарк, город на
+     главном, шапки экранов, заголовки Liked и Stats. */
   :root{
     /* канон (03_design/design-system.md) — нейтрали + амбер, без авроры.
        Фон притемнён #121212 → #0E0E0E решением Николая 2026-08-27. */
     --bg0:#0e0e0e; --bg1:#1a1a1a; --deep:#0d0d0d; --figma-bg:#0e0e0e;
     --glass:rgba(255,255,255,.05); --glass-2:rgba(255,255,255,.08); --brd:#242424;
+    /* ── РАДИУСЫ (2026-09-07, просьба Николая «единые токены на такие вещи») ──
+       До этого радиусы стояли числами по месту, и одна и та же по смыслу вещь
+       скруглялась по-разному. Шкала снята с факта и названа по канону:
+       cover — мелкая обложка в плеер-баре · bar — обложки списков, кнопки и
+       подсветка строк · slot — карточки, плитки И крупная обложка на экране трека
+       (была 24, сведена по просьбе «как у плашки с артистом ниже») ·
+       sheet — верхняя кромка шторок · frame — сам кадр телефона ·
+       pill — пилюли и ЛИНИИ (полосы прогресса, грабер, эквалайзер: у линии торцы
+       полукруглые, а не «скруглённые на 3 px»).
+       ⚠️ Панель ?tune=1 намеренно осталась на своих числах — это отладочный хром
+       вне продуктового кадра, тот же принцип, что с её палитрой. */
+    --r-cover:calc(8px*var(--u)); --r-bar:calc(12px*var(--u)); --r-slot:calc(16px*var(--u));
+    --r-sheet:24px; --r-frame:35px; --r-pill:999px;
     /* стекло слота — канон v3.3 (значения подобраны Николаем в glass-lab-live.html).
        Свет один и стоит СВЕРХУ, там же, где --glow за глобусом: светится верхняя
        грань, тени падают вниз. Поэтому угол здесь константа, а не параметр.
@@ -230,7 +258,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
      содержимое есть, и любой scrollIntoView (фокус на кнопке) уводит ВЕСЬ интерфейс
      на десятки пикселей, а вернуть его пользователь не может. Поймано на живом
      экране: .app стоял на left −63. clip обрезает, но не прокручивается. */
-  .phone{width:var(--fw); height:var(--fh); border-radius:35px; overflow:hidden; overflow:clip; position:relative; color:var(--ink);
+  .phone{width:var(--fw); height:var(--fh); border-radius:var(--r-frame); overflow:hidden; overflow:clip; position:relative; color:var(--ink);
     background:var(--figma-bg); box-shadow:0 30px 80px rgba(0,0,0,.6);}
   /* телефон: и портрет, и альбом (по высоте) — везде на весь экран */
   @media (max-width:820px), (max-height:600px){
@@ -431,7 +459,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   .app.booting.warm .boot-tag{transition-delay:.08s;}
 
   /* ВЫЛЕТ СНИЗУ (2026-08-23, решение Николая). Кадр открывается именем продукта:
-     шар ждёт ЗА нижней кромкой, поэтому «Atlas · Your Music Time Space Machine»
+     шар ждёт ЗА нижней кромкой, поэтому «Atlas · Space Time Music Machine»
      читается целиком. Потом планета влетает снизу на своё место в интерфейсе, и
      ровно под её налёт надпись гаснет — текст уходит не по своему таймеру, а
      потому что его вытесняет шар. Дистанцию --b-rise считает JS от реальной
@@ -528,7 +556,12 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   .place{display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis;
     padding:0 .12em; white-space:nowrap; transform-origin:center top;
     font-family:var(--italic); font-weight:400; font-style:italic;
-    font-size:max(29px, calc(45px*var(--u) + var(--bump))); line-height:calc(56px*var(--u));
+    /* ⚠️ Кегль 45 → 40 (2026-09-07, просьба Николая «уменьшим название города и страны»).
+       Подобран замером по всему каталогу: при доступных 347 (кадр 375 минус поля строки)
+       на 46 в одну строку влезали 38 пар из 43, на 40 — уже 41, ниже смысла нет (36 даёт 42).
+       То есть подгонка fitPlace() на большинстве мест теперь просто не включается,
+       а не «спасает» строку каждый раз. Нижняя граница 29 и сама подгонка не тронуты. */
+    font-size:max(29px, calc(40px*var(--u) + var(--bump))); line-height:calc(56px*var(--u));
     letter-spacing:calc(-2px*var(--u)); color:#6a6a6a;}
   .city{font-style:normal; color:var(--ink);}
   /* [F] запятая — белая, прямая, свой трекинг; курсив и серый начинаются со страны */
@@ -586,7 +619,11 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
      по heat (DIAL.swell), а не изменение бокса. */
   .yr{flex:0 0 auto; width:calc(126px*var(--u)); height:calc(82px*var(--u));
     display:flex; align-items:center; justify-content:center;
-    font-family:var(--led); font-weight:400; font-size:calc(32px*var(--u)); line-height:1; color:var(--ink);}
+    font-family:var(--led); font-weight:400; font-size:calc(36px*var(--u)); line-height:1; color:var(--ink);}
+  /* ⚠️ Кегль года 32 → 36 (просьба Николая 2026-09-07). Запас проверен замером:
+     «1970s» — самая широкая подпись шкалы — занимает 108 из ячейки 126, зазор между
+     соседними надписями остаётся 48 при шаге 156. Потолок ячейки — 40 (120 из 126),
+     выше подписи упрутся друг в друга и придётся растить саму ячейку. */
   /* активная ячейка меняет только кегль и цвет: сама плашка вынесена из ленты
      и стоит неподвижно (решение Николая 2026-08-26) — раньше рамка со стеклом
      была фоном .yr.cur и ездила вместе со шкалой при перетаскивании.
@@ -611,7 +648,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
      Два слоя: .well — вырез в поверхности, .drum — цилиндр в нём.
      Оба ПОД лентой (z 0), лента с годами идёт поверх (z 2). */
   .well,.drum{position:absolute; top:50%; z-index:0; pointer-events:none;
-    border-radius:999px; transform:translateY(-50%);}
+    border-radius:var(--r-pill); transform:translateY(-50%);}
   /* НИША. Свет в кадре стоит сверху, поэтому верхняя стенка выреза в тени,
      а нижняя освещена волосяной кромкой. На светлом фоне то же самое даёт
      белая кромка снизу — как на референсе. */
@@ -648,7 +685,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
      свет планеты, что горит за глобусом (--glow-rgb), как раньше у каймы. */
   .drum::after{content:""; position:absolute; left:26%; right:26%;
     top:calc(var(--dr-h)*.10px*var(--u)); height:calc(var(--dr-h)*.14px*var(--u));
-    border-radius:999px;
+    border-radius:var(--r-pill);
     background:linear-gradient(90deg, transparent,
       rgba(var(--glow-r),var(--glow-g),var(--glow-b),var(--dr-spec)) 30%,
       rgba(var(--glow-r),var(--glow-g),var(--glow-b),var(--dr-spec)) 70%, transparent);
@@ -695,11 +732,11 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
        фоне главного, и на `--glass-2` читался светлее, чем нужно. Значение не
        новое — токен `--glass`, он уже есть в палитре рядом. */
     background:var(--glass); box-shadow:inset 0 0 0 1px var(--brd);
-    border-radius:calc(12px*var(--u)); cursor:pointer;}
+    border-radius:var(--r-bar); cursor:pointer;}
   /* обложка крупнее макетных [F] 38.5196 × 39.5333 (решение Николая 2026-08-26) и
      квадратная: в баре 59.8 она стоит с полями 7.9, дробная несимметрия макета снята */
   .track .cover{flex:0 0 auto; width:calc(48px*var(--u)); height:calc(48px*var(--u));
-    min-width:40px; min-height:40px; border-radius:calc(8px*var(--u));
+    min-width:40px; min-height:40px; border-radius:var(--r-cover);
     display:flex; align-items:center; justify-content:center; font-size:calc(16px*var(--u));
     color:rgba(255,255,255,.85); background:rgba(255,255,255,.07) center/cover no-repeat; overflow:hidden;}
   .track .info{flex:1 1 auto; min-width:0; display:flex; flex-direction:column; justify-content:center;
@@ -766,13 +803,13 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   .track .pgly{--pg-h:var(--icon); margin-left:calc(6px*var(--u));}
   /* [F] Frame 66 — прогресс по нижней кромке бара */
   .track .mini-bar{position:absolute; left:calc(12px*var(--u)); right:calc(12px*var(--u)); bottom:0;
-    height:max(2px, calc(3px*var(--u))); border-radius:4px; background:rgba(255,255,255,.06);}
-  .track .mini-bar i{position:absolute; left:0; top:0; height:100%; width:55.2%; border-radius:4px; background:#B2B2B2;}
+    height:max(2px, calc(3px*var(--u))); border-radius:var(--r-pill); background:rgba(255,255,255,.06);}
+  .track .mini-bar i{position:absolute; left:0; top:0; height:100%; width:55.2%; border-radius:var(--r-pill); background:#B2B2B2;}
 
   /* [ref] высота 2 — в референсе это волосяная линия (было 4) */
-  .bar{height:calc(2px*var(--u)); background:rgba(255,255,255,.12); border-radius:3px; position:relative; cursor:pointer;}
+  .bar{height:calc(2px*var(--u)); background:rgba(255,255,255,.12); border-radius:var(--r-pill); position:relative; cursor:pointer;}
   .bar::before{content:""; position:absolute; left:0;right:0;top:-13px;bottom:-13px;}
-  .bar i{position:absolute; left:0;top:0;height:100%; width:0%; background:var(--lav); border-radius:3px;}
+  .bar i{position:absolute; left:0;top:0;height:100%; width:0%; background:var(--lav); border-radius:var(--r-pill);}
   .bar .thumb{position:absolute; top:50%; left:0%; width:12px;height:12px;border-radius:50%; background:var(--lav-bright); transform:translate(-50%,-50%); box-shadow:0 0 10px rgba(233,185,73,.7);}
   /* в референсе тайминги ~11–12 pt; у нас 13 — ниже порога канона нельзя */
   /* tabular-nums обязателен: у Avenir цифры по умолчанию разной ширины, и бегущий
@@ -893,7 +930,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   #signin .panel{position:absolute; left:0; right:0; bottom:0; height:auto; max-height:82%;
     display:flex; flex-direction:column;
     background:linear-gradient(180deg,var(--bg1),var(--deep));
-    border-radius:24px 24px 0 0;
+    border-radius:var(--r-sheet) var(--r-sheet) 0 0;
     padding:calc(10px*var(--u)) calc(20px*var(--u)) max(calc(28px*var(--u)), env(safe-area-inset-bottom, 0px));
     transform:translateY(100%); transition:transform var(--screen-in) var(--ease-drawer);
     box-shadow:0 -18px 50px rgba(0,0,0,.5);}
@@ -903,15 +940,25 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   #signin.up .panel{transform:translateY(0);}
   /* во время ведения пальцем панель идёт за ним 1:1, без доводки переходом */
   #signin .panel.dragging{transition:none;}
-  #signin .grab{flex:0 0 auto; width:40px;height:4px;border-radius:2px;background:var(--dim);opacity:.4;
+  #signin .grab{flex:0 0 auto; width:40px;height:4px;border-radius:var(--r-pill);background:var(--dim);opacity:.4;
     margin:0 auto calc(16px*var(--u));}
-  /* Знак над слоганом — кость, фирменный жест продукта (правка Николая
-     2026-08-27). Грань «6» нарисована теми же долями, что кость в ряду
-     (pip 14%, grid 20%), а скругление — ровно то, каким рисуется живая:
-     rr = DICE.rad/100/2 = 0.17 стороны, а не 0.34.
-     Размер тот же, что у кости в ряду, — 60. */
+  /* ⚠️ Здесь ЗНАК ЗАБРОСА, а не кость (2026-09-07, поймал Николай: «здесь ещё
+     старая иконка осталась»). Кость отменена 2026-08-29, но в этом окне амбер-квадрат
+     с пятью точками прожил ещё девять дней — окно поднимается из четырёх мест и мимо
+     правок продукта не проходило.
+     Разметку печатает 03_design/tools/make-orb-icon.mjs --mark 216 324 — тот самый
+     инструмент, что рисует иконку приложения. Поза 216/324 не случайна: она подобрана
+     перебором по читаемости и симметрии, поэтому окно и иконка на домашнем экране
+     показывают ОДИН И ТОТ ЖЕ знак. Меняется форма — прогнать скрипт заново.
+     Цвет белый: знак в покое белый и в ряду управления, амбер там приходит разогревом. */
+  /* ⚠️ Знак стоит ПОСЕРЕДИНЕ между грабером и заголовком (правка Николая 2026-09-07).
+     Было 16 сверху и 40 снизу — знак прижимался к грабер-полоске.
+     ⚠️ Равняем по ГЛИФАМ, а не по боксам: у заголовка сверху есть просвет строки
+     (line-height), поэтому при равных 28/28 буквы оказывались на 2.9 px ближе полоски.
+     Снизу поэтому на 3 больше: 14 (плюс 16 своих у грабера = 30) и 33 → до букв те же 30.
+     Числа целые — правило от 2026-08-26. */
   #signin .si-mark{flex:0 0 auto; width:calc(60px*var(--u)); height:calc(60px*var(--u));
-    margin:0 auto calc(40px*var(--u));}
+    margin:calc(14px*var(--u)) auto calc(33px*var(--u)); color:var(--ink);}
   #signin .si-mark svg{display:block; width:100%; height:100%;}
   /* заголовок в кегле заголовков продукта — тот же, что «Stats» и название трека */
   #signin .si-title{font-family:var(--italic); font-style:normal; font-size:32px; letter-spacing:-.02em;
@@ -919,10 +966,10 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   #signin .si-sub{font-family:var(--ui); font-size:15px; color:var(--dim); text-align:center;
     margin-top:calc(10px*var(--u)); line-height:1.5;}
   #signin .si-cta,#signin .si-alt,#signin .si-dismiss{flex:0 0 auto;}
-  #signin .si-cta{margin-top:calc(40px*var(--u)); width:100%; height:calc(56px*var(--u)); padding:0; border-radius:999px; background:var(--lav); color:var(--on-accent);
+  #signin .si-cta{margin-top:calc(40px*var(--u)); width:100%; height:calc(56px*var(--u)); padding:0; border-radius:var(--r-pill); background:var(--lav); color:var(--on-accent);
     font-family:var(--ui); font-weight:700; font-size:15px; border:none; display:flex; align-items:center; justify-content:center; gap:9px; cursor:pointer;}
   /* «Log in» — обводкой, ровно теми же значениями, что кнопки на форме входа */
-  #signin .si-alt{margin-top:calc(12px*var(--u)); width:100%; height:calc(56px*var(--u)); padding:0; border-radius:999px;
+  #signin .si-alt{margin-top:calc(12px*var(--u)); width:100%; height:calc(56px*var(--u)); padding:0; border-radius:var(--r-pill);
     background:none; border:1px solid rgba(255,255,255,.28); color:var(--ink);
     font-family:var(--ui); font-weight:600; font-size:15px; cursor:pointer;}
   #signin .si-alt:active{background:rgba(255,255,255,.05);}
@@ -1080,7 +1127,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   #queue .lk-actions{display:flex; align-items:center; justify-content:space-between;
     margin-top:calc(36px*var(--u));}
   #queue .lk-collage{flex:0 0 auto; width:calc(72px*var(--u)); height:calc(72px*var(--u));
-    border-radius:calc(12px*var(--u)); overflow:hidden; display:grid;
+    border-radius:var(--r-bar); overflow:hidden; display:grid;
     grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; background:rgba(255,255,255,.06);}
   #queue .lk-collage i{display:block; background:var(--art, rgba(255,255,255,.04)) center/cover no-repeat;}
   #queue .lk-collage.one{grid-template-columns:1fr; grid-template-rows:1fr;}
@@ -1107,9 +1154,9 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   #queue .q-list{margin-top:calc(24px*var(--u));}
   #queue .qitem{display:flex; align-items:center; gap:calc(12px*var(--u));
     padding:calc(8px*var(--u)) 0; cursor:pointer;}
-  #queue .qitem:active{background:rgba(255,255,255,.05); border-radius:calc(12px*var(--u));}
+  #queue .qitem:active{background:rgba(255,255,255,.05); border-radius:var(--r-bar);}
   #queue .qi-cov{flex:0 0 auto; width:calc(64px*var(--u)); height:calc(64px*var(--u));
-    border-radius:calc(12px*var(--u)); background:rgba(255,255,255,.07) center/cover no-repeat;}
+    border-radius:var(--r-bar); background:rgba(255,255,255,.07) center/cover no-repeat;}
   #queue .qi-l{flex:1 1 auto; min-width:0;}
   /* строка списка набрана ТЕМИ ЖЕ значениями, что строка в плеере: 15/600 трек,
      13/500 подпись. Своих кеглей и начертаний экран не заводит. */
@@ -1202,9 +1249,9 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
      2026-08-26): на 18 он терялся рядом с ними. Правило общее, значение одно. */
   #stats .st-row .l{color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   #stats .st-row .s{flex:0 0 auto;}
-  #stats .st-bar{margin-top:calc(8px*var(--u)); height:calc(3px*var(--u)); border-radius:999px;
+  #stats .st-bar{margin-top:calc(8px*var(--u)); height:calc(3px*var(--u)); border-radius:var(--r-pill);
     background:rgba(255,255,255,.08); overflow:hidden;}
-  #stats .st-bar i{display:block; height:100%; border-radius:999px; background:var(--lav);}
+  #stats .st-bar i{display:block; height:100%; border-radius:var(--r-pill); background:var(--lav);}
 
   /* ── ПРОФИЛЬ ──────────────────────────────────────────────────────
      Композиция с референса Spotify Settings, значения — наши, с уже собранных
@@ -1289,7 +1336,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   #signup.up .panel,#login.up .panel{transform:translateY(0);}
   #profile .pf-tiles{display:flex; align-items:stretch; gap:calc(16px*var(--u));
     margin-top:calc(24px*var(--u));}
-  #profile .pf-tile{flex:1 1 0; min-width:0; border-radius:calc(16px*var(--u));
+  #profile .pf-tile{flex:1 1 0; min-width:0; border-radius:var(--r-slot);
     background:#1E1E1E; padding:calc(18px*var(--u)) calc(16px*var(--u)) calc(20px*var(--u));
     display:flex; flex-direction:column; align-items:center; gap:calc(8px*var(--u));
     border:none; cursor:pointer; text-align:center;}
@@ -1304,7 +1351,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   #profile .pf-row{display:flex; align-items:center; gap:calc(14px*var(--u));
     min-height:56px; padding:calc(10px*var(--u)) 0; background:none; border:none;
     width:100%; text-align:left; cursor:pointer;}
-  #profile .pf-row:active{background:rgba(255,255,255,.05); border-radius:calc(12px*var(--u));}
+  #profile .pf-row:active{background:rgba(255,255,255,.05); border-radius:var(--r-bar);}
   #profile .pf-row svg{width:var(--icon-sm); height:var(--icon-sm); flex:0 0 auto;
     stroke:var(--ink); fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
   #profile .pf-txt{flex:1 1 auto; min-width:0;}
@@ -1319,7 +1366,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
      поэтому оно амбером — теми же значениями, что «Sign up for free» (.au-cta). */
   #profile .pf-out{display:flex; align-items:center; justify-content:center;
     width:100%; height:calc(56px*var(--u)); margin:calc(24px*var(--u)) 0;
-    border:1px solid rgba(255,255,255,.28); border-radius:999px; background:none; color:var(--ink);
+    border:1px solid rgba(255,255,255,.28); border-radius:var(--r-pill); background:none; color:var(--ink);
     font-family:var(--ui); font-size:15px; font-weight:600; cursor:pointer;}
   #profile .pf-out:active{background:rgba(255,255,255,.05);}
   #profile .pf-out.primary{border:none; background:var(--lav); color:var(--on-accent); font-weight:700;}
@@ -1349,13 +1396,13 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   .au-lbl{display:block; font-family:var(--ui); font-size:15px; font-weight:600; color:var(--ink);
     margin-bottom:calc(10px*var(--u));}
   .au-input{display:block; width:100%; height:calc(56px*var(--u)); box-sizing:border-box;
-    padding:0 calc(16px*var(--u)); border-radius:calc(12px*var(--u));
+    padding:0 calc(16px*var(--u)); border-radius:var(--r-bar);
     background:none; border:1px solid var(--brd); color:var(--ink);
     font-family:var(--ui); font-size:15px; font-weight:500; outline:none;}
   .au-input::placeholder{color:var(--dim); opacity:.6;}
   .au-input:focus{border-color:var(--lav);}
   .au-cta{display:block; width:100%; height:calc(56px*var(--u)); margin-top:calc(24px*var(--u));
-    border:none; border-radius:999px; background:var(--lav); color:var(--on-accent);
+    border:none; border-radius:var(--r-pill); background:var(--lav); color:var(--on-accent);
     font-family:var(--ui); font-size:15px; font-weight:700; cursor:pointer;
     transition:opacity .2s, transform .15s;}
   .au-cta:active{transform:scale(.98);}
@@ -1364,7 +1411,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
     margin:calc(24px*var(--u)) 0 calc(16px*var(--u));}
   .au-alt{display:flex; align-items:center; justify-content:center; gap:calc(12px*var(--u));
     width:100%; height:calc(56px*var(--u)); margin-top:calc(12px*var(--u));
-    border:1px solid rgba(255,255,255,.28); border-radius:999px; background:none; color:var(--ink);
+    border:1px solid rgba(255,255,255,.28); border-radius:var(--r-pill); background:none; color:var(--ink);
     font-family:var(--ui); font-size:15px; font-weight:600; cursor:pointer;}
   .au-alt:active{background:rgba(255,255,255,.05);}
   .au-ico{flex:0 0 auto; width:calc(22px*var(--u)); height:calc(22px*var(--u));
@@ -1391,7 +1438,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
     display:flex; flex-direction:column; overflow:hidden; overflow:clip;
     /* ⚠️ Прежний градиент bg1→deep снят: это background-image, и он перекрывал
        общее стекло, оставляя панель по цвету прежней. */
-    border-radius:24px 24px 0 0;
+    border-radius:var(--r-sheet) var(--r-sheet) 0 0;
     padding:calc(10px*var(--u)) calc(20px*var(--u)) 0;
     box-shadow:0 -18px 50px rgba(0,0,0,.5);
     transform:translateY(100%); transition:transform var(--screen-in) var(--ease-drawer);
@@ -1399,7 +1446,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   #rowmenu .panel.dragging{transition:none;}
   #rowmenu .scrim{transition:opacity var(--screen-in) ease; opacity:0;}
   #rowmenu.up .scrim{opacity:1;}
-  #rowmenu .grab{flex:0 0 auto; width:40px; height:4px; border-radius:2px; background:var(--dim); opacity:.4;
+  #rowmenu .grab{flex:0 0 auto; width:40px; height:4px; border-radius:var(--r-pill); background:var(--dim); opacity:.4;
     margin:0 auto calc(16px*var(--u));}
   /* список пунктов прокручивается внутри панели; вертикаль ему отдаём только
      на верхнем детенте, иначе прокрутка спорит с перетаскиванием шторки */
@@ -1412,7 +1459,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
     background:none; border:none; cursor:pointer; color:var(--ink);
     font-family:var(--ui); font-size:15px; font-weight:500; text-align:left;
     padding:calc(14px*var(--u)) 0; min-height:56px;}
-  #rowmenu .rm-row:active{background:rgba(255,255,255,.05); border-radius:calc(12px*var(--u));}
+  #rowmenu .rm-row:active{background:rgba(255,255,255,.05); border-radius:var(--r-bar);}
   #rowmenu .rm-row svg{width:var(--icon); height:var(--icon); flex:0 0 auto;
     stroke:var(--ink); fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round;}
   #rowmenu .rm-row .rm-go{margin-left:auto; width:calc(18px*var(--u)); height:calc(18px*var(--u));
@@ -1420,7 +1467,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   #rowmenu .rm-track{flex:0 0 auto; display:flex; align-items:center; gap:calc(12px*var(--u));
     padding-bottom:calc(14px*var(--u)); border-bottom:1px solid var(--brd);}
   #rowmenu .rm-cov{flex:0 0 auto; width:calc(48px*var(--u)); height:calc(48px*var(--u));
-    border-radius:calc(12px*var(--u)); background:rgba(255,255,255,.07) center/cover no-repeat;}
+    border-radius:var(--r-bar); background:rgba(255,255,255,.07) center/cover no-repeat;}
   #rowmenu .rm-t{font-family:var(--ui); font-size:18px; font-weight:500; color:var(--ink);}
   #rowmenu .rm-s{font-family:var(--ui); font-size:13px; color:var(--dim); margin-top:calc(2px*var(--u));}
   #rowmenu .rm-act{display:flex; align-items:center; gap:calc(14px*var(--u)); width:100%;
@@ -1433,7 +1480,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
     mask:url('assets/main-screen/ctl-like-on.svg') center/contain no-repeat;}
   /* играющий трек отмечен эквалайзером, а не словом «now playing» */
   .bars{display:flex; align-items:flex-end; gap:2px; height:14px;}
-  .bars i{width:2px; background:var(--lav); border-radius:1px; animation:eq .9s ease-in-out infinite;}
+  .bars i{width:2px; background:var(--lav); border-radius:var(--r-pill); animation:eq .9s ease-in-out infinite;}
   .bars i:nth-child(1){height:6px; animation-delay:0s;}
   .bars i:nth-child(2){height:13px; animation-delay:.18s;}
   .bars i:nth-child(3){height:9px; animation-delay:.36s;}
@@ -1555,7 +1602,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
        337, и на миниатюре 48. Плотность низкая: это фактура печати, а не сетка —
        на .17 overlay она забивала градиент и обложка становилась решёткой. */
     background-size:2.6% 2.6%; mix-blend-mode:soft-light; pointer-events:none;}
-  .ns-cover{width:100%; aspect-ratio:1; margin:calc(26px*var(--u)) 0 0; border-radius:calc(24px*var(--u)); display:flex; align-items:center; justify-content:center; font-size:42px; color:rgba(255,255,255,.85); box-shadow:0 24px 60px rgba(0,0,0,.55); background:rgba(255,255,255,.07);}
+  .ns-cover{width:100%; aspect-ratio:1; margin:calc(26px*var(--u)) 0 0; border-radius:var(--r-slot); display:flex; align-items:center; justify-content:center; font-size:42px; color:rgba(255,255,255,.85); box-shadow:0 24px 60px rgba(0,0,0,.55); background:rgba(255,255,255,.07);}
   /* Строка тайтла: текст слева, столбец действий справа — как в референсе.
      Отступ 82 — это его «воздух» между обложкой и именем трека (было 40). */
     /* 36 вместо 82: те 82 были «эластичным воздухом» референса Spotify на высоком
@@ -1584,8 +1631,30 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   /* Имя артиста в карточке «про артиста» набрано ЭТИМ ЖЕ правилом (решение
      Николая 2026-08-28): в карточке это та же находка, что под обложкой, —
      значит и голос тот же. Правило одно на два места, а не скопированные числа. */
-  .ns-title,.ab-name{font-family:var(--italic); font-style:normal; font-weight:400;
-    font-size:32px; letter-spacing:-.04em; line-height:1.15; color:var(--ink);}
+  /* ⚠️ Трек и артист набираются ИНТЕРФЕЙСНЫМ шрифтом, а не засечным (2026-09-07,
+     решение Николая). Причина не в стиле: у Instrument Serif нет кириллицы вовсе,
+     а 38 названий каталога записаны кириллицей — засечный там подменялся системным
+     шрифтом. У --ui (Avenir Next, фолбэк Inter) кириллица есть, проверено замером.
+     ⚠️ Этим отменяется «Now Playing заговорил языком места» (2026-08-25): пара
+     «прямое/курсив» на Instrument Serif, зеркалившая «Berlin, Germany» с главного,
+     на этом экране больше не действует. Засечный остаётся в шапке экрана и на
+     главном — там текст заведомо латинский.
+     Начертания взяты у той же пары в плеер-баре (трек 600, артист 500), кегли
+     остаются каноничными: text/display 32 и text/display-sub 28. */
+  /* Кегли и вес сняты с референса Spotify Now Playing (кадр Николая 2026-09-07),
+     пересчётом в ДОЛИ ширины кадра, а не переносом чисел: у него 414 pt, у нас
+     макет 434 с рычагом --ui-scale, поэтому «те же 28» дали бы заметно крупнее.
+     Замер референса: тайтл 6.76% ширины, артист 4.83%, отношение 1.4.
+     Наши 26 и 18 дают 6.95% и 4.81% — и оба уже есть в шкале канона
+     (text/screen-title и text/subtitle), новых значений не заведено.
+     ⚠️ Отвязано от общего 32: тот остался у шапки экрана, Stats и sign-in.
+     ⚠️ ВЕС и ТРЕКИНГ со Spotify НЕ переносились (правки Николая 2026-09-07):
+     референсные 700/400 и −.01em отменены. Стоят 600 и 500 при трекинге normal —
+     ровно то же, чем набрана пара «трек / артист» в плеер-баре (.track .t 15/600
+     и .track .a 13/500, оба без поджатия). Со Spotify сведены только кегли и
+     пропорции: референс дал соотношение, голос остался наш. */
+  .ns-title,.ab-name{font-family:var(--ui); font-style:normal; font-weight:600;
+    font-size:26px; letter-spacing:normal; line-height:1.15; color:var(--ink);}
   /* ── НАЗВАНИЕ ТРЕКА: одна строка (решение Николая 2026-08-30) ────────
      Переносить нечего: засечный 32 на двух строках разъезжался и толкал вниз
      артиста с перемоткой. В покое — многоточие; если не влезло, текст идёт
@@ -1609,9 +1678,14 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   /* 28, на ступень ниже тайтла — так Николай выставил в макете 2026-08-25.
      Прежнее «всё одним кеглем» отменено им же: место и трек держат 32, артист
      уходит на шаг вниз, и пара перестаёт спорить за внимание. */
-  .ns-artist{font-family:var(--italic); font-style:italic; font-weight:400;
-    font-size:28px; letter-spacing:-.04em; line-height:1.15; color:var(--dim);
-    margin-top:calc(2px*var(--u));}
+  /* Артист — тот же --ui, прямым: курсив у гротеска читается слабее и был языком
+     засечной пары, которой здесь больше нет. Различие держат вес и цвет. */
+  /* Артист — 500, как вторая строка плеер-бара. Контраст пары держат кегль
+     (26 против 18) и цвет; вес отличается на одну ступень, а не на три.
+     Зазор подобран по шагу базовых линий референса — 5.92% ширины кадра. */
+  .ns-artist{font-family:var(--ui); font-style:normal; font-weight:500;
+    font-size:18px; letter-spacing:normal; line-height:1.15; color:var(--dim);
+    margin-top:0;}
   .ns-seek{margin-top:calc(24px*var(--u));}
   /* ── БЛОК ПРО АРТИСТА ─────────────────────────────────────────────
      Собран по референсу Spotify «About the artist» (2026-08-25): фото во всю
@@ -1621,7 +1695,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
      4.26% ширины, кнопка высотой 8.2% ширины карточки. */
   /* радиус — канон radius/slot 16.219: на карточке 337 шириной прежние 12 глазом
      не читались, угол выглядел прямым (фото тёмное, фон тоже) */
-  .about,#stats .st-card{margin-top:calc(24px*var(--u)); border-radius:calc(16px*var(--u)); overflow:hidden;
+  .about,#stats .st-card{margin-top:calc(24px*var(--u)); border-radius:var(--r-slot); overflow:hidden;
     background:#1E1E1E;}                      /* канон color/surface-bar; в референсе обводки нет */
   /* ── БАННЕР МЕСТА ────────────────────────────────────────────────
      Вместо фотографии артиста (её у нас нет и выдумывать нельзя) — кусок нашей
@@ -1642,9 +1716,13 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   /* Имя слева, чип жанра в правый угол ТОЙ ЖЕ строки. Чип не сжимается —
      иначе длинный поджанр («Electric Chicago Blues») обрезался бы в многоточие
      и читался опечаткой; остаток ширины забирает имя, оно умеет в две строки.
-     Прибит к верхней кромке: на двустрочном имени центрированный чип уезжал
-     между строк (поймано 2026-08-28 на «Mohammad-Reza Shajarian»). */
-  .ab-head{display:flex; align-items:flex-start; justify-content:space-between;
+     ⚠️ Выравнивание по БАЗОВОЙ ЛИНИИ (правка Николая 2026-09-07: «чтобы визуально
+     были на одной линии»). Прежний flex-start равнял по верху боксов, а они разной
+     высоты — имя 26/600 и чип 28 с полями, — поэтому оптически чип сидел выше.
+     Baseline сажает текст чипа на ту же линию, что и имя, и заодно сохраняет
+     поведение на двустрочном имени: чип остаётся у ПЕРВОЙ строки, а не уезжает
+     между строк (ради чего flex-start и ставили 2026-08-28). */
+  .ab-head{display:flex; align-items:baseline; justify-content:space-between;
     gap:calc(16px*var(--u)); margin-top:calc(16px*var(--u));}
   .ab-photo{width:100%; aspect-ratio:1; border-radius:50%; overflow:hidden;
     position:relative; margin-top:calc(16px*var(--u));
@@ -1660,10 +1738,22 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   /* лейбл — первой строкой карточки, по её левому краю: это заголовок блока,
      а не подпись к портрету */
   .about,#stats .st-card{padding:calc(18px*var(--u)) calc(16px*var(--u)) calc(20px*var(--u));}
+  /* ⚠️ У карточки артиста поле СВЕРХУ равно боковым (правка Николая 2026-09-07):
+     круг стоит во всю ширину содержимого, поэтому любая разница читается сразу.
+     Было 18 (padding) + 16 (свой отступ портрета) = 34 сверху против 16 по бокам.
+     Правится здесь, а не в общем правиле: у карточек Stats поля 18/16/20 остаются. */
+  .about{padding-top:calc(16px*var(--u));}
+  .about .ab-photo{margin-top:0;}
   /* имя и чип стоят друг под другом по центру — чип больше не делит строку
      с именем, поэтому длинные имена и длинные жанры не спорят за ширину */
   .ab-name{flex:1 1 auto; min-width:0;}
-  .ab-chip{align-self:flex-start;}
+  /* ⚠️ Своего выравнивания у чипа БОЛЬШЕ НЕТ (2026-09-07). Стоявший здесь
+     align-self:flex-start перебивал align-items:baseline контейнера — из-за него
+     чип садился на 8.7 px выше базовой линии имени, и правка «выровнять по
+     горизонтали» не срабатывала вовсе, сколько ни меняй контейнер.
+     Задачу, ради которой flex-start ставили 2026-08-28 (на двустрочном имени
+     чип не должен уезжать между строк), baseline решает лучше: он сажает чип
+     на первую строку. */
   /* имя переносится на две строки, а не обрезается: в референсе «The Doors»
      короткое, а у нас в каталоге есть «Buena Vista Social Club» — обрезать
      имя артиста нельзя, это содержимое */
@@ -1671,13 +1761,21 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
      строкой данных рядом с «2 finds · Havana», а той строки больше нет.
      Шрифт, кегль и цвет приходят из общего правила с .ns-title выше — здесь
      только перенос на две строки: имя артиста обрезать нельзя, это содержимое. */
-  .ab-name{display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;}
+  /* ⚠️ Клип на две строки СНЯТ (2026-09-07). Он ломал выравнивание по базовой
+     линии: у элемента с display:-webkit-box базовая линия считается не по строке
+     текста, и чип жанра садился на 8.7 px выше имени — ровно то, что Николай
+     увидел как «не на одной линии».
+     Заодно это честнее по правилу проекта: имя артиста — содержимое, обрезать
+     его нельзя (записано 2026-08-25, а clamp:2 именно обрезал). Самое длинное имя
+     каталога — «Paradise Bangkok Molam International Band», 41 знак; карточка
+     просто станет выше. */
+  .ab-name{min-width:0; overflow-wrap:anywhere;}
   /* Чип жанра стоит в строке имени: слева исполнитель, справа жанр
      (решение Николая 2026-08-28). До этого он висел в верхнем правом углу
      баннера — там он читался подписью к фотографии, а не свойством артиста.
      Значения — общие с чипами в Stats, поэтому правило одно на два экрана. */
   #stats .st-chip,.ab-chip{display:flex; align-items:center; height:max(28px, calc(28px*var(--u)));
-    padding:0 calc(13px*var(--u)); border-radius:999px;
+    padding:0 calc(13px*var(--u)); border-radius:var(--r-pill);
     background:none; border:0.7px solid #7f7f7f;
     font-family:var(--ui); font-size:13px;
     font-weight:500; line-height:1; color:var(--ink);
@@ -1685,7 +1783,14 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
   /* правый край строки: чип НЕ сжимается и НЕ обрезается — «Electric Chicago
      Blues» с многоточием читался бы опечаткой; остаток забирает имя (.ab-id —
      flex:1), и длинное имя переносится на вторую строку, как и раньше. */
-  .ab-chip{flex:0 0 auto;}
+  /* ⚠️ В карточке артиста чип — inline-block, а не flex (2026-09-07). У flex-бокса
+     базовая линия СИНТЕЗИРУЕТСЯ (спека берёт её от края бокса, когда внутри нет
+     элемента со своей baseline), поэтому чип оставался на 4.9 px выше имени даже
+     после align-items:baseline. Тот же центр по вертикали даёт line-height, равный
+     высоте чипа, — и базовая линия при этом настоящая, от текста.
+     В Stats чипы стоят столбиком в своей плитке и остаются flex — их правило выше. */
+  .ab-chip{flex:0 0 auto; display:inline-block;
+    line-height:max(28px, calc(28px*var(--u)));}
   .ab-chip[hidden]{display:none;}
   /* био на три строки; «see more» лежит поверх последней строки с растушёвкой,
      как в референсе, и показывается только если текст реально не поместился */
@@ -1814,7 +1919,12 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
              константа из пяти латинских букв, резать нечего и нечему развалиться.
              Полная фраза остаётся accessible label, спаны от скринридера скрыты. -->
         <div class="boot-word" aria-label="Atlas"><span aria-hidden="true">A</span><span aria-hidden="true">t</span><span aria-hidden="true">l</span><span aria-hidden="true">a</span><span aria-hidden="true">s</span></div>
-        <div class="boot-tag">Your Music<br>Time Space Machine</div>
+        <!-- ⚠️ Слоган сведён с окном входа (правка Николая 2026-09-07): было
+             «Your Music / Time Space Machine» — порядок слов с ролика, по которому
+             снималась хореография заброса. Теперь во всём продукте один порядок.
+             Разбивка на две строки сохранена: она часть кадра, слоган стоит
+             на 0.356 высоты и в одну строку разъезжается по ширине. -->
+        <div class="boot-tag">Space Time <br>Music Machine</div>
       </div>
       <!-- статус-бар: только в десктопном мокапе, на телефоне свой у системы [F] 212:1693 -->
       <div class="sbar">
@@ -2066,8 +2176,8 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
       <div class="scrim" onclick="dismissSignin()"></div>
       <div class="panel">
         <div class="grab"></div>
-        <div class="si-mark" aria-hidden="true"><svg viewBox="-0.5 -0.5 1 1"><rect x="-0.5" y="-0.5" width="1" height="1" rx="0.17" fill="var(--lav)"/><g fill="var(--on-accent)"><circle cx="-0.2" cy="-0.2" r="0.07"/><circle cx="0.2" cy="-0.2" r="0.07"/><circle cx="-0.2" cy="0" r="0.07"/><circle cx="0.2" cy="0" r="0.07"/><circle cx="-0.2" cy="0.2" r="0.07"/><circle cx="0.2" cy="0.2" r="0.07"/></g></svg></div>
-        <div class="si-title" id="siTitle">Music Space Time Machine</div>
+        <div class="si-mark" aria-hidden="true"><svg viewBox="0 0 100 100" fill="none"><circle cx="50" cy="50" r="36.5" fill="none" stroke="currentColor" stroke-width="3.8"/><g fill="none" stroke="currentColor" stroke-width="3.8" stroke-linecap="round" opacity="0.32"><path d="M 70.67 80.02 L 69.14 80.83 L 67.53 81.48 L 65.82 81.96 L 64.03 82.29 L 62.17 82.45 L 60.25 82.45 L 58.27 82.28 L 56.26 81.94 L 54.21 81.45 L 52.14 80.79 L 50.06 79.97 L 47.98 79.01 L 45.91 77.89 L 43.86 76.64 L 41.84 75.24 L 39.86 73.72 L 37.94 72.08 L 36.07 70.32 L 34.28 68.47 L 32.57 66.51 L 30.94 64.48 L 29.42 62.37 L 28.00 60.19 L 26.69 57.97 L 25.50 55.70 L 24.43 53.41 L 23.49 51.10 L 22.69 48.78 L 22.03 46.47 L 21.51 44.17 L 21.14 41.91 L 20.91 39.69 L 20.83 37.52 L 20.90 35.41 L 21.12 33.38 L 21.49 31.43 L 22.00 29.58 L 22.65 27.83 L 23.44 26.19 L 24.37 24.68 L 25.43 23.29 L 26.62 22.04 L 27.92 20.94"/></g><g fill="none" stroke="currentColor" stroke-width="3.8" stroke-linecap="round" opacity="0.32"><path d="M 73.38 22.04 L 74.57 23.29 L 75.63 24.68 L 76.56 26.19 L 77.35 27.83 L 78.00 29.58 L 78.51 31.43 L 78.88 33.38 L 79.10 35.41 L 79.17 37.52 L 79.09 39.69 L 78.86 41.91 L 78.49 44.17 L 77.97 46.47 L 77.31 48.78 L 76.51 51.10 L 75.57 53.41 L 74.50 55.70 L 73.31 57.97 L 72.00 60.19 L 70.58 62.37 L 69.06 64.48 L 67.43 66.51 L 65.72 68.47 L 63.93 70.32 L 62.06 72.08 L 60.14 73.72 L 58.16 75.24 L 56.14 76.64 L 54.09 77.89 L 52.02 79.01 L 49.94 79.97 L 47.86 80.79 L 45.79 81.45 L 43.74 81.94 L 41.73 82.28 L 39.75 82.45 L 37.83 82.45 L 35.97 82.29 L 34.18 81.96 L 32.47 81.48 L 30.86 80.83 L 29.33 80.02 L 27.92 79.06"/></g><g fill="none" stroke="currentColor" stroke-width="3.8" stroke-linecap="round" opacity="1"><path d="M 72.08 79.06"/><path d="M 29.33 19.98 L 30.86 19.17 L 32.47 18.52 L 34.18 18.04 L 35.97 17.71 L 37.83 17.55 L 39.75 17.55 L 41.73 17.72 L 43.74 18.06 L 45.79 18.55 L 47.86 19.21 L 49.94 20.03 L 52.02 20.99 L 54.09 22.11 L 56.14 23.36 L 58.16 24.76 L 60.14 26.28 L 62.06 27.92 L 63.93 29.68 L 65.72 31.53 L 67.43 33.49 L 69.06 35.52 L 70.58 37.63 L 72.00 39.81 L 73.31 42.03 L 74.50 44.30 L 75.57 46.59 L 76.51 48.90 L 77.31 51.22 L 77.97 53.53 L 78.49 55.83 L 78.86 58.09 L 79.09 60.31 L 79.17 62.48 L 79.10 64.59 L 78.88 66.62 L 78.51 68.57 L 78.00 70.42 L 77.35 72.17 L 76.56 73.81 L 75.63 75.32 L 74.57 76.71 L 73.38 77.96 L 72.08 79.06"/></g><g fill="none" stroke="currentColor" stroke-width="3.8" stroke-linecap="round" opacity="1"><path d="M 72.08 20.94"/><path d="M 26.62 77.96 L 25.43 76.71 L 24.37 75.32 L 23.44 73.81 L 22.65 72.17 L 22.00 70.42 L 21.49 68.57 L 21.12 66.62 L 20.90 64.59 L 20.83 62.48 L 20.91 60.31 L 21.14 58.09 L 21.51 55.83 L 22.03 53.53 L 22.69 51.22 L 23.49 48.90 L 24.43 46.59 L 25.50 44.30 L 26.69 42.03 L 28.00 39.81 L 29.42 37.63 L 30.94 35.52 L 32.57 33.49 L 34.28 31.53 L 36.07 29.68 L 37.94 27.92 L 39.86 26.28 L 41.84 24.76 L 43.86 23.36 L 45.91 22.11 L 47.98 20.99 L 50.06 20.03 L 52.14 19.21 L 54.21 18.55 L 56.26 18.06 L 58.27 17.72 L 60.25 17.55 L 62.17 17.55 L 64.03 17.71 L 65.82 18.04 L 67.53 18.52 L 69.14 19.17 L 70.67 19.98 L 72.08 20.94"/></g></svg></div>
+        <div class="si-title" id="siTitle">Space Time Music Machine</div>
         <div class="si-sub" id="siSub">Keep what you find. Your tracks, the places and decades they came from.</div>
         <button class="si-cta" onclick="openSignup()"></button>
         <button class="si-alt" onclick="openLogin()">Log in</button>
@@ -2936,6 +3046,13 @@ function playResult(p,dec,push,gi){
   document.getElementById('city').textContent=p.name;
   document.getElementById('cityComma').textContent=', ';
   document.getElementById('country').textContent=p.country;
+  /* ⚠️ Подгонку кегля надо звать ЗДЕСЬ, при смене места (починено 2026-09-07).
+     Раньше fitPlace() вызывался ровно из двух мест — из layout() и, по недоразумению,
+     из toggleSave(), — то есть строка подгонялась при ресайзе окна и при лайке, но НЕ
+     при смене города. Длинная пара так и оставалась обрезанной многоточием, пока не
+     случится одно из двух («Johannesburg, South ...» — кадр Николая).
+     Второй проход кадром позже обязателен: на первом метрики строки ещё старые. */
+  fitPlace(); requestAnimationFrame(fitPlace);
   if(e){ track.classList.remove('atmo');
     document.getElementById('npTitle').textContent=e.t;
     document.getElementById('npArtist').textContent=e.a;
@@ -3068,26 +3185,37 @@ async function runMarquee(el){
   if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const me={}; mqRun=me;
   const sp=el.firstChild;
-  const d=Math.round(sp.scrollWidth-el.clientWidth);
-  if(d<=1) return;                              /* влезло — ни бега, ни многоточия */
-  const dur=d/MQ_SPEED*1000;
   const alive=()=>mqRun===me && el.isConnected && el.firstChild===sp;
-  const glide=(from,to)=>sp.animate(
+  /* Ход меряется ПЕРЕД каждой пробежкой, а не один раз на всю жизнь строки
+     (починено 2026-09-06). Раньше замер шёл единожды через 120 мс после смены
+     трека — а трек меняется и тогда, когда экран ещё не разложен: clientWidth
+     равен 0, ход выходит равным всей ширине надписи, и она уезжала за кадр
+     целиком и не возвращалась. Ноль клиента означает «замера ещё нет», а не
+     «места нет»: в этом случае ждём следующего круга. */
+  const reach=()=>el.clientWidth ? Math.round(sp.scrollWidth-el.clientWidth) : 0;
+  const glide=(from,to,dur)=>sp.animate(
     [{transform:`translateX(${from}px)`},{transform:`translateX(${to}px)`}],
     {duration:dur, easing:'ease-in-out', fill:'forwards'});
   while(alive()){
     await mqWait(MQ_HOLD); if(!alive()) break;  /* покой: видно многоточие */
     /* экран закрыт — не гоняем невидимое, ждём и проверяем снова */
     if(!document.getElementById('nowsheet').classList.contains('up')) continue;
+    const d=reach(); if(d<=1) continue;         /* влезло (или мерить ещё нечем) */
+    const dur=d/MQ_SPEED*1000;
     el.classList.add('mq');
-    let a=glide(0,-d); await a.finished.catch(()=>{}); if(!alive()){ a.cancel(); break; }
+    let a=glide(0,-d,dur); await a.finished.catch(()=>{}); if(!alive()){ a.cancel(); break; }
     await mqWait(MQ_HOLD); if(!alive()){ a.cancel(); break; }
-    let b=glide(-d,0); await b.finished.catch(()=>{});
+    let b=glide(-d,0,dur); await b.finished.catch(()=>{});
     a.cancel(); b.cancel();
     if(!alive()) break;
     el.classList.remove('mq');                  /* вернулись — снова многоточие */
   }
-  if(el.isConnected && mqRun!==me) el.classList.remove('mq');
+  /* прогон осиротел — снимаем и класс, и уехавший сдвиг: анимации идут
+     с fill:'forwards', и без отмены надпись осталась бы за кромкой */
+  if(el.isConnected && mqRun!==me){
+    el.classList.remove('mq');
+    el.getAnimations({subtree:true}).forEach(a=>a.cancel());
+  }
 }
 function setGlow(tint){ const g=document.getElementById('glow');
   if(typeof tint==='number') g.style.background=glowColor(tint);
@@ -3550,8 +3678,12 @@ function dSize(){}                          /* размеры держит viewB
    (2026-08-29): на 90° кольцо низкое и не завалено (сплюснутость .44, наклон 0°),
    на 105° — зеркально ему, вместе дают «глаз» из референса. Прежние 135° сажали
    кольцо под 149° — знак читался как перечёркнутый круг. */
-const ORB={ ph:90, ph2:105, gamma:48, alpha:22, axis:0, R:34, sw:4.4, back:.32,
-  turns:1, open:2.4, seg:88,
+const ORB={ ph:90, ph2:105, gamma:48, alpha:22, axis:0, R:36.5, sw:3.8, back:.32,
+  turns:1, open:5, seg:88,
+  /* Своя мягкость знака: жёсткость его пружины = DIAL.magW × wMul. Общая пружина
+     ведёт ещё и планету, а знаку нужна своя (значения Николая, лаборатория
+     orb-lab-live.html, 2026-09-05). */
+  wMul:.55,
   /* Каждый бросок садится в СЛУЧАЙНУЮ позу (правка Николая 2026-08-29) — как у
      кости выпадала грань. Но не в любую: вне диапазона кольцо заваливается и
      знак читается перечёркнутым кругом (замер фаз 29.08). 45…150° — те позы,
@@ -3559,7 +3691,23 @@ const ORB={ ph:90, ph2:105, gamma:48, alpha:22, axis:0, R:34, sw:4.4, back:.32,
   /* Диапазон сужен по замеру наклона всей фигуры (2026-08-29): на 45…150°
      знак заваливался до 40° и читался перечёркнутым кругом. На 55…110° наклон
      остаётся в пределах 13°, а поза всё равно каждый раз другая. */
-  poseMin:55, poseMax:110, ph2off:15,
+  poseMin:40, poseMax:140, ph2off:15,
+  /* РАЗБРОС ПОЗЫ. Раньше от броска к броску менялась только фаза колец, а сдвиг
+     второго, наклон и поворот оси стояли константами — знак вставал одинаково.
+     Теперь ORB.alpha / axis задают ЦЕНТР, а *Jit — на сколько от него можно
+     отойти. Значения из лаборатории 2026-09-05. */
+  ph2Jit:90, gamJit:0, alJit:15, axJit:24,
+  /* ЧИТАЕМОСТЬ ПОЗЫ. Оба кольца делят ось и конус, поэтому при близких фазах
+     они садятся друг на друга и знак схлопывается в один эллипс — коридором
+     фаз это не лечится. Поза проверяется по двум признакам и переразыгрывается:
+     sepMin — минимальный угол между плоскостями колец, openMin — насколько
+     каждое повёрнуто к зрителю, в сотых (30 = эллипс не уже 30% ширины).
+     poseFree — фаза второго кольца берётся независимо, а не сдвигом ph2off. */
+  poseFree:1, sepMin:35, openMin:30,
+  /* Порог остановки броска. Был 1% полного оборота (3.6°) — на нём знак
+     доворачивался последние градусы одним кадром И схлопывал раскрытый конус,
+     что читалось рывком (замер 2026-09-05). */
+  landDeg:1, landV:60,   /* landV — порог скорости остановки, °/с */
   /* Разогрев: чем быстрее кольца, тем ближе цвет к амберу. heatV — скорость
      (рад/с), на которой цвет доходит до амбера.
      ⚠️ Тем же приёмом разгорался год под капсулой шкалы; там он снят вместе
@@ -3569,9 +3717,50 @@ const oRad=d=>d*Math.PI/180;
 const oCross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const oNorm=v=>{const m=Math.hypot(...v)||1;return[v[0]/m,v[1]/m,v[2]/m];};
 let oA1=oRad(ORB.ph), oA2=oRad(ORB.ph2), oV1=0, oV2=0, oT1=oRad(ORB.ph), oT2=oRad(ORB.ph2), oRaf=0, oGam=ORB.gamma, oGuard=0;
+/* Наклон, поворот и посадочный конус живые: каждый бросок разыгрывает их заново
+   вокруг центров ORB.alpha / axis / gamma. */
+let oAl=ORB.alpha, oAx=ORB.axis, oGamLand=ORB.gamma;
+const oJit=(c,j,lo,hi)=>Math.max(lo,Math.min(hi, c+(Math.random()*2-1)*j));
+
+/* Нормаль кольца — та же математика, что в oRing, но без обхода точек. По ней
+   поза оценивается ДО того, как знак в неё сядет: угол между нормалями говорит,
+   разведены ли кольца, а z нормали — насколько кольцо повёрнуто к зрителю
+   (z около нуля = кольцо видно с ребра и вырождается в отрезок). */
+function oNormalOf(t,gamma,al0,ax0){
+  const al=oRad(al0), g=oRad(gamma), b=oRad(ax0);
+  const a=oNorm([Math.sin(b),Math.cos(b)*Math.cos(al),Math.sin(al)]);
+  let w=oCross(a,[0,0,1]); if(Math.hypot(...w)<1e-6) w=[1,0,0]; w=oNorm(w);
+  const aw=oCross(a,w), ct=Math.cos(t), st=Math.sin(t), cg=Math.cos(g), sg=Math.sin(g);
+  return oNorm([a[0]*cg+(w[0]*ct+aw[0]*st)*sg, a[1]*cg+(w[1]*ct+aw[1]*st)*sg, a[2]*cg+(w[2]*ct+aw[2]*st)*sg]);
+}
+function oPoseOk(p){
+  const n1=oNormalOf(oRad(p.ph1),p.gam,p.al,p.ax);
+  const n2=oNormalOf(oRad(p.ph2),p.gam,p.al,p.ax);
+  const dot=Math.min(1,Math.abs(n1[0]*n2[0]+n1[1]*n2[1]+n1[2]*n2[2]));
+  const sep=Math.acos(dot)*180/Math.PI, open=Math.min(Math.abs(n1[2]),Math.abs(n2[2]));
+  return { ok: sep>=ORB.sepMin && open>=ORB.openMin/100,
+           q: Math.min(sep/Math.max(1,ORB.sepMin), open/Math.max(.01,ORB.openMin/100)) };
+}
+/* Поза не просто разыгрывается, а подбирается: до 48 попыток, берётся первая
+   читаемая; если не прошла ни одна — лучшая из перебранных, а не первая. */
+function oDrawPose(){
+  let best=null;
+  for(let i=0;i<48;i++){
+    const ph1=ORB.poseMin+Math.random()*(ORB.poseMax-ORB.poseMin);
+    const ph2 = ORB.poseFree
+      ? ORB.poseMin+Math.random()*(ORB.poseMax-ORB.poseMin) + (Math.random()<.5?180:0)
+      : ph1 + oJit(ORB.ph2off, ORB.ph2Jit, 0, 180);
+    const p={ ph1, ph2, gam:oJit(ORB.gamma,ORB.gamJit,0,90),
+      al:oJit(ORB.alpha,ORB.alJit,-80,80), ax:oJit(ORB.axis,ORB.axJit,-90,90) };
+    const sc=oPoseOk(p);
+    if(sc.ok) return p;
+    if(!best || sc.q>best.q){ best=p; best.q=sc.q; }
+  }
+  return best;
+}
 
 function oRing(t,gamma){
-  const al=oRad(ORB.alpha), g=oRad(gamma), b=oRad(ORB.axis);
+  const al=oRad(oAl), g=oRad(gamma), b=oRad(oAx);
   const a=oNorm([Math.sin(b),Math.cos(b)*Math.cos(al),Math.sin(al)]);
   let w=oCross(a,[0,0,1]); if(Math.hypot(...w)<1e-6) w=[1,0,0]; w=oNorm(w);
   const aw=oCross(a,w), ct=Math.cos(t), st=Math.sin(t), cg=Math.cos(g), sg=Math.sin(g);
@@ -3613,7 +3802,7 @@ function orbDraw(){
 /* сажает шар мгновенно: конец броска и страховка на случай замерших кадров */
 function orbSettle(){
   cancelAnimationFrame(oRaf); clearTimeout(oGuard); oGuard=0;
-  oA1=oT1; oA2=oT2; oV1=oV2=0; oGam=ORB.gamma; orbDraw(); orbTint();
+  oA1=oT1; oA2=oT2; oV1=oV2=0; oGam=oGamLand; orbDraw(); orbTint();
 }
 function rollOrb(){
   if(RM){ oT1=oT1; orbSettle(); return; }
@@ -3621,29 +3810,36 @@ function rollOrb(){
   /* Цель — случайная поза из читаемого диапазона. Оба кольца садятся
      согласованно (второе со сдвигом ph2off), поэтому «глаз» знака сохраняется,
      а наклон и раскрытие каждый раз новые: бросок видно по тому, как он встал. */
-  const ph=ORB.poseMin+Math.random()*(ORB.poseMax-ORB.poseMin);
+  const P=oDrawPose(), ph=P.ph1;
+  oGamLand=P.gam; oAl=P.al; oAx=P.ax;
   const aim=(cur,phaseDeg,dir)=>{
     const base=Math.round((cur-oRad(phaseDeg))/(Math.PI*2))*(Math.PI*2)+oRad(phaseDeg);
     return base+dir*Math.PI*2*Math.max(1,Math.round(ORB.turns));
   };
-  oT1=aim(oA1,ph,1); oT2=aim(oA2,ph+ORB.ph2off,-1);
-  const w=DIAL.magW, D=Math.PI*2*ORB.turns;
+  oT1=aim(oA1,ph,1); oT2=aim(oA2,P.ph2,-1);
+  const w=DIAL.magW*ORB.wMul, D=Math.PI*2*ORB.turns;
   let last=performance.now(), landed=false;
   const step=now=>{
     const dt=Math.min(.05,(now-last)/1000); last=now;
     oV1+=(w*w*(oT1-oA1)-2*w*oV1)*dt; oA1+=oV1*dt;
     oV2+=(w*w*(oT2-oA2)-2*w*oV2)*dt; oA2+=oV2*dt;
     /* конус раскрывается на ходу и закрывается к посадке — шар распахивается */
-    oGam=Math.min(90, ORB.gamma*(1+(ORB.open-1)*Math.min(1,Math.abs(oV1)/(Math.PI*2))));
+    oGam=Math.min(90, oGamLand*(1+(ORB.open-1)*Math.min(1,Math.abs(oV1)/(Math.PI*2))));
     orbDraw(); orbTint();
-    if(Math.abs(oT1-oA1) > D*0.01) oRaf=requestAnimationFrame(step);
+    /* Останавливаемся, когда знак И ПОДЪЕХАЛ, И почти не движется. Одного угла
+       мало: при мелком landDeg хвост пружины тянется дольше страховочного
+       таймера, и бросок фактически заканчивал ОН (замер 2026-09-05), а его
+       точность зависит от планировщика браузера, не от физики. */
+    if(Math.abs(oT1-oA1) > oRad(ORB.landDeg) || Math.abs(oV1) > oRad(ORB.landV)) oRaf=requestAnimationFrame(step);
     else{ orbSettle(); if(!landed){ landed=true; haptic(18); } }   /* удар о место — как у кости */
   };
   oRaf=requestAnimationFrame(step);
   /* ⚠️ Страховка: rAF не тикает в скрытой вкладке. Без неё прерванный бросок
      оставлял скорость ненулевой — знак навсегда застревал амбером и в
      полуобороте (поймано замером 2026-08-29). Тот же приём, что у шторок. */
-  oGuard=setTimeout(orbSettle, Math.round(6.6/DIAL.magW*1000)+700);
+  /* ⚠️ Втрое дольше расчётной посадки: страховка обязана срабатывать ПОЗЖЕ
+     естественного конца броска, иначе она его и заканчивает. */
+  oGuard=setTimeout(orbSettle, Math.round(3*6.6/(DIAL.magW*(ORB.wMul||1))*1000)+700);
 }
 orbDraw(); orbTint();
 
@@ -3904,7 +4100,7 @@ function openSignin(reason){
   /* Заголовок — слоган продукта, а не название действия (правка Николая
      2026-08-27): окно поднимается из четырёх мест, а «создай профиль» и так
      написано на кнопке. */
-  document.getElementById('siTitle').textContent='Music Space Time Machine';
+  document.getElementById('siTitle').textContent='Space Time Music Machine';
   /* Текст называет ВСЁ, что даёт профиль, а не одну находку (правка Николая
      2026-08-27): плейлист находок, статистику (места и эпохи) и синхронизацию.
      Окно поднимается из четырёх разных мест — ♥, кнопка списка, статистика,
@@ -4238,13 +4434,18 @@ function renderGlobe(){
       /* Подпись города на шаре снята (решение Николая 2026-08-27): она дублировала
          заголовок над глобусом, где то же место набрано крупно и засечным.
          Выбранный город держит амбер-точка со свечением — этого достаточно. */
-    } else { const lam=Math.max(0, r.x*-0.40+r.y*0.50+r.z*0.77);
-      /* город без записей на этой эпохе гаснет, но остаётся на месте: видно, что
-         мир больше выбора, — решение Николая «города гаснут, а не исчезают» */
-      const a=(0.30+0.6*lam)*(live?1:0.20);
-      ctx.fillStyle='rgba(255,255,255,'+a+')';
-      ctx.shadowColor='rgba(255,255,255,.8)'; ctx.shadowBlur=live?(4+3*r.z):0;
-      ctx.beginPath(); ctx.arc(x,y,(live?1.7:1.2)+0.6*r.z, 0, 6.2832); ctx.fill(); ctx.shadowBlur=0; }
+    } else {
+      /* ⚠️ Город без записей на этой эпохе НЕ РИСУЕТСЯ ВОВСЕ (решение Николая
+         2026-09-07: «не нужны серые неактивные точки на карте»). Этим отменяется
+         «города гаснут, но остаются на месте — видно, что мир больше выбора»
+         (2026-08-25): раньше такая точка светилась в 20% и уменьшалась до 1.2.
+         Само правило «время ведёт, места гаснут» в силе — меняется только его
+         изображение: на глобусе теперь показано ровно то, что можно послушать. */
+      if(!live) continue;
+      const lam=Math.max(0, r.x*-0.40+r.y*0.50+r.z*0.77);
+      ctx.fillStyle='rgba(255,255,255,'+(0.30+0.6*lam)+')';
+      ctx.shadowColor='rgba(255,255,255,.8)'; ctx.shadowBlur=4+3*r.z;
+      ctx.beginPath(); ctx.arc(x,y,1.7+0.6*r.z, 0, 6.2832); ctx.fill(); ctx.shadowBlur=0; }
   }
 }
 /* ── ФИЛЬТР ВРЕМЕНИ (2026-08-25) ──────────────────────────────────────
@@ -4465,8 +4666,14 @@ function refreshDial(){ try{
    спокойнее — палец ведёт ленту вчетверо мягче, инерция гаснет быстрее,
    перемотка к слоту вдвое длиннее и идёт кривой iOS-шторки. */
 const DIAL = {
-  sens:   0.45,   /* чувствительность драга: доля хода ленты на пиксель пальца */
-  decay:  0.855,  /* затухание инерции за кадр: меньше — раньше встаёт */
+  /* ⚠️ Поднято 0.45 → 0.70 и 0.855 → 0.88 (2026-09-07: «лента слишком туго крутится
+     на телефоне, сложновато переключать»). Причина мерилась, а не угадывалась: снап
+     уходит на соседнюю эпоху, когда лента прошла полшага — 78 px из 156. При sens
+     0.45 это требовало провести пальцем 173 px, то есть почти полэкрана, а короткий
+     свайп 70 px давал всего 60 px хода вместе с инерцией и откатывался назад.
+     При 0.70/0.88 тот же свайп даёт ~103 px и эпоха меняется. */
+  sens:   0.70,   /* чувствительность драга: доля хода ленты на пиксель пальца */
+  decay:  0.88,   /* затухание инерции за кадр: меньше — раньше встаёт */
   stop:   0.03,   /* порог остановки инерции */
   snapMs: 1100,   /* перемотка к слоту, в том числе после костей */
   /* ⚠️ Кривая iOS-шторки. Её меняли 2026-08-27 на плавный вход (.42,0,.12,1)
@@ -4483,8 +4690,11 @@ const DIAL = {
      разгон, затухание, а потом пружина разгоняла заново.
      Пружина критически задемпфирована, поэтому одногорбая и плавная по природе:
      трогается с нуля, разгоняется, гасится у цели и не проскакивает её. */
-  magW:   12,     /* жёсткость пружины, рад/с: МЕНЬШЕ — дольше и мягче полёт.
-                     Выкручена в максимум: планета садится коротко и собранно */
+  magW:   9.6,    /* жёсткость пружины, рад/с: МЕНЬШЕ — дольше и мягче полёт.
+                     ⚠️ Ведёт ТРОИХ разом: планету к городу, посадку ленты лет и
+                     бросок знака (у него сверху свой множитель ORB.wMul).
+                     9.6 откручено Николаем в orb-lab-live.html 2026-09-05 —
+                     этим отменён максимум 12 от 2026-09-04. */
   R:      0.76,   /* радиус барабана в долях ширины кадра: больше — положе дуга */
   dim:    4.0,    /* затухание по дуге: края заметно бледнее */
   end:    1.40,   /* за этим углом год ушёл за горизонт и не рисуется.
