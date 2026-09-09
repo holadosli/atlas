@@ -281,7 +281,6 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
     html,body{height:100%; min-height:0; overflow:hidden; overscroll-behavior:none;}
     body{padding:0; gap:0; display:block; background:var(--figma-bg);}
     .stage{position:fixed; inset:0; gap:0;}
-    .caption{display:none;}
     /* на устройстве фрейм = весь экран; края скругляет само железо */
     .phone{width:100%; height:100%; border-radius:0; box-shadow:none;}
     /* свой статус-бар не рисуем — сверху свой у системы, ему отдаётся safe-area.
@@ -1535,7 +1534,6 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
   /* старые правила строки очереди удалены 2026-08-25: их перекрыл блок #queue,
      но font-style:italic из них протекал и красил подпись фальшивым курсивом */
   .empty{color:var(--dim); text-align:center; margin-top:54px; line-height:1.7;}
-  .caption{color:#6b6b72; font-size:13px; max-width:390px; text-align:center; line-height:1.55;}
 
   /* now playing / about-artist full sheet */
   /* [ref] боковое поле 5.98% ширины кадра; с общим --ui-scale цель 5.07% → 20.5×--u.
@@ -2223,9 +2221,6 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
       </div>
     </div>
   </div>
-  <div class="caption">ATLAS v4 — геометрия главного экрана 1:1 из Figma «Main Screen» (212:1647), поведение от v3.
-    Крути глобус → место, диал → год, 🎲 — рандом. Жанр-чипы меняют трек.
-    Instrument Serif · Avenir Next · NDOT 47 (LED). Флаг: <code>?figma=1</code> — контент макета для сверки.</div>
 </div>
 
 <script>
@@ -3033,6 +3028,12 @@ const placeById=id=>PLACES.find(p=>p.id===id);
 const PROFILE_KEY = 'atlas_profile';
 
 let state={place:null,dec:null,playing:false,saved:[],haptics:true,dataSaver:false,email:localStorage.getItem('atlas_email')||'',authWith:localStorage.getItem('atlas_auth')||'',hist:[],hi:-1,shuffleLiked:false,signedIn:localStorage.getItem(PROFILE_KEY)==='1'};
+/* ⚠️ Продукт больше НЕ начинает играть сам (решение Николая 2026-09-09): на входе
+   трек заряжен, но стоит на паузе, и первый звук даёт нажатие play. До этого музыка
+   вступала на посадке планеты, а при заблокированном автоплее — от первого касания
+   экрана. Флаг переключает startPlay(); дальше всё как раньше — заброс, глобус,
+   шкала и плейлист меняют трек и продолжают играть. */
+let started=false;          /* play нажимали хотя бы раз */
 /* Стартовые находки — демо-заполнение прототипа. Он должен открываться с
    непустым плейлистом (иначе каждый показ начинается с натапывания ♥), а с
    2026-08-26 от этого же набора считается и статистика.
@@ -3115,7 +3116,9 @@ function playResult(p,dec,push,gi){
   const lr=document.getElementById('likeRow'); if(lr) lr.classList.toggle('on',on);
   if(push){ state.hist=state.hist.slice(0,state.hi+1); state.hist.push({pid:p.id,dec,gi}); state.hi=state.hist.length-1; }
   loadAudio(e);
-  startPlay();
+  /* до первого нажатия play только заряжаем источник: интерфейс показывает
+     находку, звук ждёт человека. Иконка при этом честная — ▶, а не «играет». */
+  if(started) startPlay(); else { state.playing=false; setPlayIcon('▶'); }
 }
 /* [F] Ellipse 64 живёт на opacity .3 — «нет архива» приглушает до .18.
    Цвет свечения ведёт за собой место: у каждой точки в данных свой hue, и при
@@ -4222,7 +4225,7 @@ function closeSignin(){ const si=document.getElementById('signin');
   setTimeout(()=>{ if(!si.classList.contains('up')) si.classList.remove('active'); }, SCREEN_OUT); }
 /* «Not now» и тап по фону — отказ от самого действия, а не только от окна */
 function dismissSignin(){ pendingSave=null; pendingOpen=null; closeSignin(); }
-function fromSaved(pid,dec,gi){ closeProfile(); closeQueue(); lastPlace=pid; globeFocus(placeById(pid)); centerDial(dec); playResult(placeById(pid),dec,true,gi); }
+function fromSaved(pid,dec,gi){ started=true; closeProfile(); closeQueue(); lastPlace=pid; globeFocus(placeById(pid)); centerDial(dec); playResult(placeById(pid),dec,true,gi); }
 
 /* ── ЗВУК (2026-08-29) ───────────────────────────────────────────────
    Источник — 30-секундные превью Apple (iTunes Search API), разрезолвленные
@@ -4292,19 +4295,14 @@ let curDur=DUR;             /* длительность текущего ист�
 
 /* Разблокировка: первый же контакт с экраном. Слушаем на этапе перехвата и
    не глотаем событие — оно продолжает работать как обычный тап по интерфейсу. */
-function unlockAudio(e){
-  /* ⚠️ Тап по самой кнопке play пропускаем: её обработчик придёт следом и сам
-     переключит состояние. Стартуй мы здесь — клик прочитал бы «уже играет» и
-     тут же поставил паузу, то есть кнопка перестала бы работать. */
-  const onPlayBtn = e && e.target && e.target.closest &&
-    e.target.closest('#cardPlay,#npfPlay,.card-play');
-  if(autoBlocked && !onPlayBtn){
-    /* вступаем штатным стартом: разом и звук, и иконка, и прогресс */
-    autoBlocked=false; audioOK=true; startPlay(); return;
-  }
+function unlockAudio(){
+  /* ⚠️ Здесь больше НЕ стартует звук (2026-09-09). Раньше первое касание экрана
+     вступало само — это была страховка от заблокированного автоплея; теперь
+     автоплея нет вовсе, и играть по касанию глобуса значило бы обманывать: на
+     кнопке ▶, а музыка идёт. Жест только помечает элемент разблокированным,
+     чтобы последующий play() прошёл программно. */
   if(audioOK) return;
-  au.play().then(()=>{ audioOK=true; }).catch(()=>{});
-  if(au.src) audioOK=true;   /* жест был; дальше play() разрешён программно */
+  if(au.src) audioOK=true;
 }
 ['pointerdown','touchstart','keydown'].forEach(ev=>
   document.addEventListener(ev, unlockAudio, {capture:true, passive:true}));
@@ -4388,12 +4386,10 @@ function mkState(ev){ if(!mkOn) return;
   if(ev && ev.state===10) nextInPair(); }
 
 function loadAudio(e){
-  /* ⚠️ СТРАХОВКА ОТ НЕМОГО ПЛЕЕРА. Громкость снимается только на время фейда
-     первого трека; если фейд по любой причине не доигран, `au.volume` остался бы
-     нулём — и продукт молчал бы, показывая «играет». Тот же класс вранья, что
-     чинили 2026-08-30 с автоплеем, поэтому проверка стоит на каждом заряжании
-     трека, а не в одном месте. */
-  if(!tuneKill && !MUTED && au.volume!==1) au.volume=1;
+  /* ⚠️ СТРАХОВКА ОТ НЕМОГО ПЛЕЕРА: что бы ни оставило громкость на нуле, каждый
+     новый трек заряжается в полную. Продукт, показывающий «играет» при тишине, —
+     тот же класс вранья, что чинили 2026-08-30 с автоплеем. */
+  if(!MUTED && au.volume!==1) au.volume=1;
   const m=audioFor(e);
   clearInterval(progTimer); progTimer=null;
   prog=0;
@@ -4422,41 +4418,11 @@ function nextInPair(){
    нет (поймано Николаем 2026-08-30: «не проигрывается сразу как загружается»).
    Отказ → честная ▶ в баре и флаг, по которому первое касание вступит. */
 let autoBlocked=false;
-/* ── МУЗЫКА ПРОЯВЛЯЕТСЯ ИЗ ТИШИНЫ (2026-09-08, решение Николая) ─────────
-   Первый трек не включается в полную громкость, а нарастает из нуля за 1.6 с —
-   на посадке планеты это читается как «поймали», а не как «щёлкнули тумблером».
-   ⚠️ **Помех радио здесь БОЛЬШЕ НЕТ.** Полосовой шум с дрожанием, из которого
-   музыка проявлялась встречным фейдом, был собран 2026-09-07 и снят Николаем
-   на следующий день: «давай звук радио вначале уберем, лучше сделаем fade in
-   музыки». Вместе с ним ушли `AudioContext`, узлы шума и подготовка на старте
-   заброса (`tuneArm`) — синтезированного звука в продукте снова ноль.
-   ⚠️ Фейд висит на ПЕРВОМ УДАВШЕМСЯ старте звука, а не на загрузке страницы:
-   браузер не отдаёт звук до жеста, на iOS всегда. На десктопе это совпадает с
-   посадкой планеты, на телефоне — с первым касанием.
-   ⚠️ Ведёт таймер, а не requestAnimationFrame: rAF замирает в скрытой вкладке и
-   тикает рывками — фейд растягивался бы вдвое. Шаг считается от времени,
-   поэтому пропущенный тик его не удлиняет. */
-const TUNE=window.TUNE={fade:1600};
-let tuneKill=null;
-function tuneIn(){
-  if(tuneIn.done || MUTED || !au.src) return;
-  tuneIn.done=true;
-  au.volume=0;
-  const from=performance.now();
-  tuneKill=()=>{ tuneKill=null; au.volume=1; };
-  const step=()=>{
-    if(!tuneKill){ clearInterval(tick); return; }   /* фейд сняли (пауза от человека) */
-    const k=Math.max(0,Math.min(1,(performance.now()-from)/TUNE.fade));
-    au.volume=Math.pow(k,.7);                       /* по мощности, а не линейно: линейный слышится провалом */
-    if(k>=1){ clearInterval(tick); au.removeEventListener('timeupdate',step); tuneKill(); }
-  };
-  const tick=setInterval(step,25);
-  /* ⚠️ Тот же шаг слушает и САМО АУДИО: таймеры в фоновой вкладке душат до одного
-     тика в минуту, и фейд мог зависнуть на нуле — интерфейс показывал бы «играет»
-     при полной тишине. События проигрывания в это время идут как обычно. */
-  au.addEventListener('timeupdate',step);
-}
-window.tuneIn=tuneIn;
+/* ⚠️ ФЕЙДА БОЛЬШЕ НЕТ (снят 2026-09-09, решение Николая). Первый трек нарастал
+   из нуля за 1.6 с — это читалось как «поймали», пока музыка вступала сама на
+   посадке планеты; с переходом на ручной старт (там же) нажатие play стало
+   означать медленный подъём вместо звука, и фейд отменён. Вместе с ним ушли
+   `TUNE.fade`, `tuneIn()` и `tuneKill`. История приёма — в STATUS за 2026-09-08. */
 /* Сводка по звуку для панели ?diag=1 — чтобы «нет звука» диагностировалось
    скриншотом с телефона, а не переписыванием кода. Три причины немоты
    различаются здесь однозначно: карта не загрузилась (по file:// её режет CORS),
@@ -4467,14 +4433,8 @@ window.__audio=function(){
 };
 function tryPlay(){
   if(!au.src) return;
-  /* громкость снимаем ДО play(): иначе первые миллисекунды трека прозвучат
-     в полную громкость и фейд начнётся щелчком. Не вышло — возвращаем. */
-  const fadeIn = !tuneIn.done && !MUTED;
-  if(fadeIn) au.volume=0;
   const p=au.play();
-  if(p && p.then) p.then(()=>tuneIn(),()=>{});        /* фейд — только на удавшемся старте */
   if(p && p.catch) p.catch(()=>{
-    if(fadeIn && !tuneIn.done) au.volume=1;
     autoBlocked=true; state.playing=false; setPlayIcon('▶');
   });
 }
@@ -4492,7 +4452,7 @@ function togglePlay(){ state.playing?stopPlay():startPlay(); }
 function setPlayIcon(t){ const cp=document.getElementById('cardPlay'); if(cp)cp.classList.toggle('paused',t==='▶');
   const pf=document.getElementById('npfPlay'); if(pf)pf.classList.toggle('paused',t==='▶');
 }
-function startPlay(){ state.playing=true; setPlayIcon('❚❚'); clearInterval(progTimer); progTimer=null;
+function startPlay(){ state.playing=true; started=true; setPlayIcon('❚❚'); clearInterval(progTimer); progTimer=null;
   /* явное действие снимает флаг блокировки: дальше паузу ставит только человек,
      и касание экрана её больше не отменяет */
   autoBlocked=false;
@@ -4511,9 +4471,6 @@ function startPlay(){ state.playing=true; setPlayIcon('❚❚'); clearInterval(p
      чтобы интерфейс не выглядел зависшим */
   progTimer=setInterval(()=>{ if(!seeking){ prog=(prog+100/DUR/10)%100; drawProg(); } },100); }
 function stopPlay(){ state.playing=false; setPlayIcon('▶'); clearInterval(progTimer); progTimer=null; autoBlocked=false;
-  /* пауза посреди настройки волны снимает и помехи, и приглушение музыки:
-     иначе человек снял бы паузу и услышал трек на нулевой громкости */
-  if(tuneKill) tuneKill();
   au.pause(); if(mkOn&&mk){ try{ mk.pause(); }catch(_){} } }
 function drawProg(totalSec){ /* длительность превью дробная (29.98) — округляем, иначе остаток печатается как -0:28.976961 */
   const total=Math.max(1,Math.round(totalSec||curDur)); const c=Math.floor(prog/100*total), r=total-c;
@@ -5240,6 +5197,9 @@ function unlike(ev,pid,dec,gi){
    плейлист — место, где слушают подряд, и захлопывать его на каждом треке незачем.
    Мир при этом всё равно едет за треком: глобус и шкала встают на его место и эпоху. */
 function playLikedTrack(pid,dec,gi){
+  /* выбор трека руками в плейлисте — это и есть «включи»: ждать отдельного
+     нажатия play после него было бы издевательством */
+  started=true;
   lastPlace=pid; globeFocus(placeById(pid)); centerDial(dec);
   playResult(placeById(pid),dec,true,gi);
 }
@@ -5447,7 +5407,6 @@ const RAW=location.search.indexOf('raw')!==-1;
 if(RAW){ const s=document.createElement('style');
   s.textContent='body{padding:0!important;display:block!important}'
     +'.stage{position:absolute!important;left:0;top:0;inset:auto;align-items:flex-start;gap:0;height:auto!important}'
-    +'.caption{display:none}'
     +'body .phone{width:'+433.9895324707031+'px!important;height:'+938.8344726562500+'px!important;border-radius:35px;box-shadow:none}'
     +'body .sbar{display:flex!important}';
   document.head.appendChild(s); }
