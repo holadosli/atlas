@@ -31,7 +31,7 @@ addEventListener('unhandledrejection',function(e){window.__err.push('promise: '+
      раз переписать названия, как браузер отдал из кеша вчерашнюю карту к новому
      каталогу — совпадений не нашлось, и 38 треков молча стали немыми.
      Меняются данные в assets/data — поднимать дату здесь же. */
-window.__DATA_VER = '2026-09-07';
+window.__DATA_VER = '2026-09-07b';
 window.__DATA = ['audio-map','artist-pics'].map(function(n){
   return fetch('assets/data/'+n+'.json?v='+window.__DATA_VER).then(function(r){ return r.ok ? r.json() : null; })
                                         .catch(function(){ return null; });
@@ -60,6 +60,12 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
     font-weight:400; font-style:normal; font-display:swap; }
   @font-face{ font-family:'Instrument Serif'; src:url('assets/fonts/instrument-serif-latin-400-italic.woff2') format('woff2');
     font-weight:400; font-style:italic; font-display:swap; }
+  /* МАРКА. LAS VALLES Rounded 2 стоит ТОЛЬКО на вордмарке заставки — интерфейсных
+     ролей у неё нет, поэтому кита это не расширяет (решение Николая 2026-09-09).
+     ⚠️ Следующий шаг — перевести «ATLAS» в кривые (brand.md §8): гарнитура тогда
+     останется марочной, а файл шрифта уйдёт из сборки. */
+  @font-face{ font-family:'LAS VALLES Rounded 2'; src:url('assets/fonts/lasvalles-rounded2.otf') format('opentype');
+    font-weight:400; font-style:normal; font-display:block; }
   /* ⚠️ Кириллического донора здесь НЕТ, и это осознанно (2026-09-07). У Instrument
      Serif кириллицы не существует вовсе, поэтому 38 названий из советского пласта
      каталога уходили в системный фолбэк. День это закрывал донор на unicode-range
@@ -142,6 +148,8 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
        он нигде не подгружался через @font-face, поэтому на телефоне подменялся
        системным моноширинным — отсюда и «какой-то шрифт на таймлайне». */
     --led:'NDOT 47','Doto',monospace;
+    /* марка — только вордмарк заставки, в интерфейсе не участвует */
+    --mark:'LAS VALLES Rounded 2','Instrument Serif',serif;
     /* [F] размеры фрейма */
     --fw:434px; --fh:939px;
     /* единица адаптива; ставится скриптом в <head> до первой отрисовки и уточняется в layout() */
@@ -149,6 +157,12 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
     /* +1px ко всей интерфейсной типографике (2026-08-23, решение Николая).
        Держим одним рычагом, чтобы не разъезжалось по файлу. */
     --bump:1px;
+    /* Кегль и интерлиньяж крупного имени (название трека и имя артиста) и высота
+       чипа жанра — вынесены токенами, потому что по ним считается вертикальная
+       посадка чипа в строке имени на карточке артиста. Значение живёт в одном
+       месте: правится здесь, а не в трёх правилах. */
+    --name-size:26px; --name-lh:1.15;
+    --chip-h:max(28px, calc(28px*var(--u)));
     /* общий масштаб интерфейса: 1 — размеры макета, больше — крупнее всё разом.
        Читается из JS при расчёте единицы --u и диаметра глобуса (2026-08-23). */
     --ui-scale:1.16;
@@ -388,9 +402,13 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
   /* вордмарк лежит ЗА глобусом. Цвет — канонический акцент var(--lav) #EAB949.
      До 2026-08-24 здесь стоял литерал #D5BA7A, снятый пипеткой с ролика: рядом с
      амбером чипов и кубика он читался как другой оттенок золота. Канон один. */
-  /* кегль и позиция выверены по ролику: ширина слова 88.2% кадра, верх букв на 0.111 высоты */
-  .boot-word{position:absolute; left:0; right:0; top:calc(67px*var(--u)); text-align:center;
-    font-family:var(--italic); font-size:calc(192px * var(--u) / var(--ui-scale)); line-height:1.19;
+  /* Верх букв по-прежнему на 0.111 высоты — число с ролика. ШИРИНА слова изменена
+     с 88.2% на 78% (решение Николая 2026-09-09): LAS VALLES вдвое уже засечного, и
+     на прежней ширине буквы вырастали до трети кадра и упирались в кромки.
+     Кегль 359 макета = ровно эти 78% при трекинге −3%; трекинг сжимает строку,
+     поэтому без него то же значение дало бы 82% — числа связаны, менять парой. */
+  .boot-word{position:absolute; left:0; right:0; top:calc(14px*var(--u)); text-align:center;
+    font-family:var(--mark); font-size:calc(359px * var(--u) / var(--ui-scale)); line-height:1.19;
     letter-spacing:-.03em; text-transform:uppercase; color:var(--lav);
     opacity:0; transition:opacity var(--b-fade-text) ease,
       transform var(--b-fade-text) ease, filter var(--b-fade-text) ease;}
@@ -419,8 +437,13 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
      Figma, это брак. Возвращаем замеренные пары вручную. Значения в em, поэтому
      держатся на любом --u: кернинг в шрифте задан в юнитах и линеен по кеглю.
      Пары L→L и L→A у Instrument Serif нулевые, им поправка не нужна. */
-  .boot-word span:nth-child(2){margin-left:-0.0421em;}   /* A→T */
-  .boot-word span:nth-child(5){margin-left:-0.0120em;}   /* A→S */
+  /* ⚠️ Кернинг-пары A→T −0.0421em и A→S −0.0120em сняты 2026-09-09 вместе со сменой
+     гарнитуры: они замерены у Instrument Serif и на LAS VALLES означали бы чужие числа.
+     Осталась одна пара — A→T, замеренная у LAS VALLES на неразбитом тексте. */
+  .boot-word span:nth-child(2){margin-left:-.03em;}
+  /* ⚠️ Хвостовой трекинг компенсировать НЕ надо: у inline-block'ов просвет после
+     последней буквы входит в ширину строки, и центрирование учитывает его само —
+     поправка сдвигала марку вправо на 9.3 px (замер полей: 45.9 против 36.6). */
   .app.booting .boot-word span{will-change:transform, opacity;
     animation:boot-letter-rise var(--b-letter-dur) var(--b-letter-ease) backwards;
     animation-delay:var(--b-lead);}
@@ -446,16 +469,23 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
     transform:scale(var(--b-text-exit-scale)); filter:blur(var(--b-text-blur));
     transition:opacity var(--b-text-out) ease,
       transform var(--b-text-out) ease, filter var(--b-text-out) ease;}
-  /* слоган — как в ролике: под вордмарком, верх строки на 0.356 высоты кадра */
-  .boot-tag{position:absolute; left:0; right:0; top:35.6%; text-align:center; pointer-events:none;
+  /* Слоган: кегль поднят на 15% (47/41 → 54/47 макета) решением Николая 2026-09-09.
+     ⚠️ Верхняя линия при этом уехала с 0.356 на 0.418 высоты — и это не вкус, а замер:
+     у новой марки низ букв встал на 0.378 высоты против 0.264 у засечной, то есть
+     прежние 0.356 попадали ПРЯМО на буквы. 0.418 = низ марки + 4% высоты кадра. */
+  .boot-tag{position:absolute; left:0; right:0; top:41.8%; text-align:center; pointer-events:none;
     /* белый (решение Николая). Заодно снят запрет канона п.2: тут стоял
        --muted #6A6A6A, контраст к фону 3.5:1 при норме AA 4.5 */
-    font-family:var(--italic); font-style:italic; color:var(--ink);
-    font-size:calc(47px * var(--u) / var(--ui-scale)); line-height:calc(41px * var(--u) / var(--ui-scale)); letter-spacing:-.04em;
+    /* Пара «прямое / курсив» — тот же приём, что у «Berlin, *Germany*» на главном:
+       ось места прямая, ось находки наклонная (решение Николая 2026-09-09).
+       До этого курсивом шли обе строки. */
+    font-family:var(--italic); font-style:normal; color:var(--ink);
+    font-size:calc(54px * var(--u) / var(--ui-scale)); line-height:calc(47px * var(--u) / var(--ui-scale)); letter-spacing:-.04em;
     opacity:0; transition:opacity var(--b-fade-text) ease,
       transform var(--b-fade-text) ease, filter var(--b-fade-text) ease;}
   /* масштаб относителен: те же 1.06 на мелком кегле дают меньший ход в пикселях —
      слоган материализуется мягче имени сам собой, без отдельного значения */
+  .boot-tag i{font-style:italic;}
   .app.booting.warm .boot-tag{transition-delay:.08s;}
 
   /* ВЫЛЕТ СНИЗУ (2026-08-23, решение Николая). Кадр открывается именем продукта:
@@ -1018,26 +1048,17 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
      что-то уезжает — строки плейлиста растворяются, а не спорят с баром.
      Лежит между слоями: выше плейлиста (при открытом он поднят вместе с .bottom),
      ниже самого бара и кнопок. */
-  /* Затемнение под плеером. Плотность поднята 2026-08-29 (Николай: «надо
-     посильнее»): раньше фон набирал силу только к 38% высоты, и строки списка
-     доезжали до бара почти нетронутыми. */
-  .bottom::before{content:""; position:absolute; left:calc(-20px*var(--u)); right:calc(-20px*var(--u));
-    bottom:calc(-40px*var(--u)); top:calc(-84px*var(--u)); pointer-events:none; z-index:-1;
-    /* ⚠️ Мягче и короче (Николай 2026-08-30: «затемнение поменьше»): зона стала
-       84 вместо 120, ступени положе. Но к 46% градиент обязан дойти до ПОЛНОГО
-       фона: 46% слоя — это нижняя кромка плашки бара, и ниже неё список не
-       должен выглядывать в промежутке между баром и рядом кнопок. */
-    background:linear-gradient(180deg, rgba(14,14,14,0) 0%, rgba(14,14,14,.30) 18%,
-      rgba(14,14,14,.72) 34%, var(--bg0) 46%, var(--bg0) 100%);
-    transition:opacity .28s var(--ease-drawer);}
-  /* ⚠️ Пока плеер ЕДЕТ, затемнения нет (2026-09-04, поймал Николай на записи:
-     «когда плеер выезжает после закрытия экрана, затемнение резко появляется
-     на короткое время»). Слой приклеен к `.bottom` и начинается на 84 выше неё,
-     поэтому вместе с плеером он проезжает по экрану снизу вверх и на миг
-     накрывает шкалу тёмной полосой. Работа у него только в покое — гасить то,
-     что уезжает ПОД стоящий плеер, — поэтому на время движения он не нужен.
-     `.nmove` висит ровно столько, сколько едет плеер (SCREEN_OUT). */
-  .app.nmove .bottom::before{opacity:0;}
+  /* ⚠️ ЗАТЕМНЕНИЕ ПЕРЕД ПЛЕЕРОМ ЖИВЁТ НА САМОМ ЭКРАНЕ, а не на плеере
+     (правка Николая 2026-09-08: «некрасиво плейлисты открываются, нельзя это
+     затемнение сделать просто статичным?»). Оно и было на `.bottom`, поэтому
+     его приходилось то гасить, то возвращать переходами — а любой переход
+     читался вспышкой: слой лезет на нижнюю треть шкалы лет.
+     Теперь это часть панели списка: приезжает и уезжает ВМЕСТЕ с ней, своего
+     перехода не имеет вовсе и главного экрана не касается в принципе.
+     Стопы заданы в пикселях от верхней кромки слоя, а не долями: доли считались
+     бы от высоты, а она зависит от плеера (`--bottom-h`) и разъезжалась бы на
+     разных экранах. Числа — те же, что были у прежнего слоя (54 · 101 · 137
+     при `--u` 1), поэтому вид не поменялся. */
 
   /* ── ПОСТЕПЕННОЕ РАЗМЫТИЕ ПЕРЕД ПЛЕЕРОМ ──────────────────────────
      Одним слоем `backdrop-filter` такого не сделать: у него один радиус на всю
@@ -1115,6 +1136,14 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
     padding:0 0 calc(var(--bottom-h, 140px) + 12px*var(--u));}
   .screen .s-scroll::-webkit-scrollbar{width:0; height:0; display:none;}
   .screen .panel{overflow:hidden; overflow:clip;}   /* ничего не вылезает вбок из экрана */
+  /* тот самый слой: строки списка уходят под плеер затемнением, а не обрываются
+     об его кромку. Плеер стоит выше панели (z 120), поэтому слой ложится ровно
+     между списком и баром. */
+  .screen .panel::after{content:""; position:absolute; left:0; right:0; bottom:0;
+    height:calc(var(--bottom-h, 140px) + 84px*var(--u)); pointer-events:none; z-index:5;
+    background:linear-gradient(180deg, rgba(14,14,14,0) 0,
+      rgba(14,14,14,.30) calc(54px*var(--u)), rgba(14,14,14,.72) calc(101px*var(--u)),
+      var(--bg0) calc(137px*var(--u)), var(--bg0) 100%);}
   /* Шапка — три колонки, боковые РАВНОЙ ширины (44 = тач-зона). На flex со
      space-between заголовок вставал по центру ОСТАТКА между кнопкой 26 и
      распоркой 44, то есть был смещён влево на 9 px (замер 2026-08-28: центр
@@ -1654,7 +1683,7 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
      и .track .a 13/500, оба без поджатия). Со Spotify сведены только кегли и
      пропорции: референс дал соотношение, голос остался наш. */
   .ns-title,.ab-name{font-family:var(--ui); font-style:normal; font-weight:600;
-    font-size:26px; letter-spacing:normal; line-height:1.15; color:var(--ink);}
+    font-size:var(--name-size); letter-spacing:normal; line-height:var(--name-lh); color:var(--ink);}
   /* ── НАЗВАНИЕ ТРЕКА: одна строка (решение Николая 2026-08-30) ────────
      Переносить нечего: засечный 32 на двух строках разъезжался и толкал вниз
      артиста с перемоткой. В покое — многоточие; если не влезло, текст идёт
@@ -1722,7 +1751,7 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
      Baseline сажает текст чипа на ту же линию, что и имя, и заодно сохраняет
      поведение на двустрочном имени: чип остаётся у ПЕРВОЙ строки, а не уезжает
      между строк (ради чего flex-start и ставили 2026-08-28). */
-  .ab-head{display:flex; align-items:baseline; justify-content:space-between;
+  .ab-head{display:flex; align-items:flex-start; justify-content:space-between;
     gap:calc(16px*var(--u)); margin-top:calc(16px*var(--u));}
   .ab-photo{width:100%; aspect-ratio:1; border-radius:50%; overflow:hidden;
     position:relative; margin-top:calc(16px*var(--u));
@@ -1774,7 +1803,7 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
      (решение Николая 2026-08-28). До этого он висел в верхнем правом углу
      баннера — там он читался подписью к фотографии, а не свойством артиста.
      Значения — общие с чипами в Stats, поэтому правило одно на два экрана. */
-  #stats .st-chip,.ab-chip{display:flex; align-items:center; height:max(28px, calc(28px*var(--u)));
+  #stats .st-chip,.ab-chip{display:flex; align-items:center; height:var(--chip-h);
     padding:0 calc(13px*var(--u)); border-radius:var(--r-pill);
     background:none; border:0.7px solid #7f7f7f;
     font-family:var(--ui); font-size:13px;
@@ -1789,8 +1818,17 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
      после align-items:baseline. Тот же центр по вертикали даёт line-height, равный
      высоте чипа, — и базовая линия при этом настоящая, от текста.
      В Stats чипы стоят столбиком в своей плитке и остаются flex — их правило выше. */
-  .ab-chip{flex:0 0 auto; display:inline-block;
-    line-height:max(28px, calc(28px*var(--u)));}
+  /* ⚠️ Чип центрируется по СРЕДНЕЙ ЛИНИИ первой строки имени (правка Николая
+     2026-09-07, вечер), а не по базовой. По базовой он садился ниже: у имени 26
+     кегля половина глифа выше базовой линии ~9 px, а у чипа центр отстоит от неё
+     всего на ~3.5 — расхождение и читалось «чип ниже заголовка».
+     Отступ СЧИТАЕТСЯ, а не подобран: (строка имени − высота чипа) / 2, обе
+     величины — токены. Контейнер поэтому равняет по верху: центр чипа встаёт
+     ровно на половину первой строки, и на двустрочном имени он остаётся у первой
+     строки, а не уезжает между строк (ради чего 2026-08-28 и ставили flex-start). */
+  .ab-chip{flex:0 0 auto; display:inline-block; line-height:var(--chip-h);
+    margin-top:calc((var(--name-size)*var(--name-lh) - var(--chip-h))/2
+                    + var(--ab-chip-shift, 0px));}
   .ab-chip[hidden]{display:none;}
   /* био на три строки; «see more» лежит поверх последней строки с растушёвкой,
      как в референсе, и показывается только если текст реально не поместился */
@@ -1821,7 +1859,7 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
        на 950 мс — слоган дочитывался к ~850 мс, и паузы на имени не оставалось.
        Теперь: имя всплывает 0…0.9 с, слоган 0.22…1.12 с, ТИШИНА до 1.5 с, и только
        потом планета. Сдвиги между стадиями сохранены (+950 / +2050 от старта шара). */
-    window.BOOT = { riseAt: 2200, warmAt: 3150, assembleAt: 4250, startTop: 0.52 };
+    window.BOOT = { riseAt: 2200, warmAt: 3150, assembleAt: 4250, startTop: 0.59 };
 
     (function () {
       var timers = [], skipHandler = null;
@@ -1848,7 +1886,7 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
            продукта сверху остаётся читаемым. Считаем от увеличенного диаметра. */
         var scale = parseFloat(getComputedStyle(a).getPropertyValue('--b-globe-scale')) || 2.1;
         var cy = r.top + r.height / 2;            // центр шара в покое
-        var startTop = window.BOOT && typeof window.BOOT.startTop === 'number' ? window.BOOT.startTop : 0.52;
+        var startTop = window.BOOT && typeof window.BOOT.startTop === 'number' ? window.BOOT.startTop : 0.59;
         var wantTop = f.top + f.height * startTop;
         a.style.setProperty('--b-rise', Math.max(0, wantTop - (cy - h * scale / 2)) + 'px');
       }
@@ -1924,7 +1962,7 @@ window.__DATA = ['audio-map','artist-pics'].map(function(n){
              снималась хореография заброса. Теперь во всём продукте один порядок.
              Разбивка на две строки сохранена: она часть кадра, слоган стоит
              на 0.356 высоты и в одну строку разъезжается по ширине. -->
-        <div class="boot-tag">Space Time <br>Music Machine</div>
+        <div class="boot-tag">Space Time <br><i>Music Machine</i></div>
       </div>
       <!-- статус-бар: только в десктопном мокапе, на телефоне свой у системы [F] 212:1693 -->
       <div class="sbar">
@@ -2986,7 +3024,7 @@ const ARTISTS={
    module script near the end of the file. Continents are no longer drawn as dots. */
 
 const DUR=162, RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
-let actx=null, lastPlace=null;
+let lastPlace=null;
 const placeById=id=>PLACES.find(p=>p.id===id);
 
 /* ---- профиль ATLAS (мок — без сторонних интеграций) ----
@@ -3040,6 +3078,8 @@ function playResult(p,dec,push,gi){
      полного круга по паре продукт САМ бросал кости (решение Николая
      2026-08-30): три трека по кругу превращали заброс в петлю. */
   if(p.id!==state.place || dec!==state.dec) pairEnded=0;
+  /* мир сменили не прогулкой (кости, глобус, шкала, плейлист) — пройденное забываем */
+  if(!walking && (p.id!==state.place || dec!==state.dec)) walk=[];
   const arr=p.eras[dec]||null; if(arr&&gi>=arr.length)gi=0;
   state.place=p.id; state.dec=dec; state.gi=gi; prog=0;
   const e=arr?arr[gi]:null, track=document.getElementById('track'), cov=document.getElementById('cover');
@@ -3257,6 +3297,29 @@ function fitPlace(){
   el.style.fontSize=Math.max(PLACE_MIN, Math.floor(base*max/w))+'px';
 }
 
+/* ── ПОСАДКА ЧИПА ЖАНРА В СТРОКЕ ИМЕНИ ────────────────────────────────
+   CSS сажает чип по центру ПЕРВОЙ СТРОКИ имени; этого мало — центр строки
+   лежит ниже оптического центра букв, потому что снизу в строке есть место
+   под выносные элементы (у имени 26 кегля разница ~1.8 px). Проект уже
+   равнял по глифам, а не по боксам (слоган окна входа, 2026-09-07), поэтому
+   поправка МЕРЯЕТСЯ у живого шрифта, а не подбирается числом: у Avenir Next
+   и у Inter-фолбэка метрики разные, и вшитое число врало бы на одном из них.
+   Эталон — прописная «H»: у имени в Title Case оптический центр держит
+   именно высота прописных, а не случайный набор букв конкретного имени. */
+function alignArtistChip(){
+  const n=document.getElementById('abName'), c=document.getElementById('abChip');
+  if(!n||!c) return;
+  const cs=getComputedStyle(n), lh=parseFloat(cs.lineHeight);
+  if(!lh) return;
+  const g=(alignArtistChip._g ||= document.createElement('canvas').getContext('2d'));
+  g.font=cs.fontWeight+' '+cs.fontSize+' '+cs.fontFamily;
+  const m=g.measureText('H');
+  const asc=m.fontBoundingBoxAscent, desc=m.fontBoundingBoxDescent, cap=m.actualBoundingBoxAscent;
+  if(!asc||!desc||!cap) return;                      /* метрик нет — остаёмся на центре строки */
+  const baseline=(lh-(asc+desc))/2+asc;              /* от верха первой строки */
+  c.style.setProperty('--ab-chip-shift', ((baseline-cap/2)-lh/2).toFixed(2)+'px');
+}
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(alignArtistChip);
 function updateNowSheet(p,dec,e){
   const cov=document.getElementById('npfCover'), av=document.getElementById('abHero');
   const ctx=document.getElementById('npfCtx');
@@ -3282,6 +3345,7 @@ function updateNowSheet(p,dec,e){
     const chip0=document.getElementById('abChip'); if(chip0) chip0.hidden=true;
     setBio('No archived recording — this is a sound postcard of the era.'); }
   const on=isSaved(p.id,dec,state.gi); const l2=document.getElementById('npfLike'); if(l2) l2.classList.toggle('on',on);
+  alignArtistChip();
 }
 /* Био целиком, без обрезки и кнопки раскрытия (решение Николая 2026-08-29). */
 function setBio(text){
@@ -3843,12 +3907,43 @@ function rollOrb(){
 }
 orbDraw(); orbTint();
 
-function shuffle(){ ensureCtx(); haptic([12,40,22]);   /* бросок: два удара, как кубик о стол */
+function shuffle(){ haptic([12,40,22]);   /* бросок: два удара, как кубик о стол */
   rollOrb();
   let p; do{ p=PLACES[Math.floor(Math.random()*PLACES.length)]; }while(PLACES.length>1&&p.id===lastPlace); lastPlace=p.id;
   const eras=Object.keys(p.eras); const dec=eras[Math.floor(Math.random()*eras.length)];
   globeSpin(p); const di=DEC.indexOf(dec); tx=txForIdx(di); applyTx(tx,true);
   playResult(p,dec,true);
+}
+/* ── ПРОГУЛКА ПО СОСЕДЯМ (правка Николая 2026-09-07) ───────────────────
+   «Дальше» больше не крутит три трека пары по кругу: пролистав место, уходим
+   в БЛИЖАЙШЕЕ место с записями той же эпохи, там снова листаем треки, дальше —
+   в следующее ближайшее. Эпоха при этом не трогается: время ведёт, места
+   уступают (принцип 9) — двигаемся по миру, а не по годам.
+   ⚠️ Пройденное запоминается: без этого прогулка ходила бы между двумя
+   ближайшими соседями туда-обратно. Список живёт, пока мир не сменили иначе —
+   бросок, глобус, шкала и тап в плейлисте начинают прогулку заново
+   (сбрасывается в playResult, кроме шагов самой прогулки — флаг walking). */
+let walk=[], walking=false;
+/* угловое расстояние по сфере: сравниваем именно его, а не разницу координат —
+   у долготы цена градуса зависит от широты */
+function geoDist(a,b){
+  const s=Math.sin(a.latR)*Math.sin(b.latR)
+         +Math.cos(a.latR)*Math.cos(b.latR)*Math.cos(a.lonR-b.lonR);
+  return Math.acos(Math.max(-1,Math.min(1,s)));
+}
+function nextPlaceOnWalk(){
+  const cur=state.place?placeById(state.place):null; if(!cur) return null;
+  const seen=new Set(walk);
+  let best=null,bd=Infinity, any=null,ad=Infinity;
+  for(const p of PLACES){
+    if(p.id===cur.id || !hasArchive(p,state.dec)) continue;
+    const d=geoDist(cur,p);
+    if(d<ad){ ad=d; any=p; }                 /* ближайший вообще — на случай, если обошли всё */
+    if(seen.has(p.id)) continue;
+    if(d<bd){ bd=d; best=p; }
+  }
+  if(!best && any) walk=[];                  /* круг по эпохе пройден — начинаем заново */
+  return best||any;
 }
 function prevTrack(){ if(state.hi>0){ state.hi--; const h=state.hist[state.hi]; lastPlace=h.pid; globeFocus(placeById(h.pid)); centerDial(h.dec); playResult(placeById(h.pid),h.dec,false,h.gi); } }
 function nextTrack(){
@@ -3863,7 +3958,11 @@ function nextTrack(){
      и дублировать их стрелкой незачем. По пулу идём по кругу; если в паре
      всего один трек, листать нечего — тогда это честный заброс. */
   const p=state.place?placeById(state.place):null, arr=p?(p.eras[state.dec]||[]):[];
-  if(arr.length>1){ playResult(p, state.dec, true, (state.gi+1)%arr.length); return; }
+  if(arr.length && state.gi<arr.length-1){ playResult(p, state.dec, true, state.gi+1); return; }
+  /* треки места кончились — в ближайшее место той же эпохи (см. nextPlaceOnWalk) */
+  const nb=nextPlaceOnWalk();
+  if(nb){ walk.push(state.place); walking=true; globeFocus(nb);
+    playResult(nb, state.dec, true, 0); walking=false; return; }
   shuffle(); }
 function centerDial(dec){ const di=DEC.indexOf(dec); if(di>=0){ tx=txForIdx(di); applyTx(tx,true); } }
 
@@ -4289,6 +4388,12 @@ function mkState(ev){ if(!mkOn) return;
   if(ev && ev.state===10) nextInPair(); }
 
 function loadAudio(e){
+  /* ⚠️ СТРАХОВКА ОТ НЕМОГО ПЛЕЕРА. Громкость снимается только на время фейда
+     первого трека; если фейд по любой причине не доигран, `au.volume` остался бы
+     нулём — и продукт молчал бы, показывая «играет». Тот же класс вранья, что
+     чинили 2026-08-30 с автоплеем, поэтому проверка стоит на каждом заряжании
+     трека, а не в одном месте. */
+  if(!tuneKill && !MUTED && au.volume!==1) au.volume=1;
   const m=audioFor(e);
   clearInterval(progTimer); progTimer=null;
   prog=0;
@@ -4317,10 +4422,59 @@ function nextInPair(){
    нет (поймано Николаем 2026-08-30: «не проигрывается сразу как загружается»).
    Отказ → честная ▶ в баре и флаг, по которому первое касание вступит. */
 let autoBlocked=false;
+/* ── МУЗЫКА ПРОЯВЛЯЕТСЯ ИЗ ТИШИНЫ (2026-09-08, решение Николая) ─────────
+   Первый трек не включается в полную громкость, а нарастает из нуля за 1.6 с —
+   на посадке планеты это читается как «поймали», а не как «щёлкнули тумблером».
+   ⚠️ **Помех радио здесь БОЛЬШЕ НЕТ.** Полосовой шум с дрожанием, из которого
+   музыка проявлялась встречным фейдом, был собран 2026-09-07 и снят Николаем
+   на следующий день: «давай звук радио вначале уберем, лучше сделаем fade in
+   музыки». Вместе с ним ушли `AudioContext`, узлы шума и подготовка на старте
+   заброса (`tuneArm`) — синтезированного звука в продукте снова ноль.
+   ⚠️ Фейд висит на ПЕРВОМ УДАВШЕМСЯ старте звука, а не на загрузке страницы:
+   браузер не отдаёт звук до жеста, на iOS всегда. На десктопе это совпадает с
+   посадкой планеты, на телефоне — с первым касанием.
+   ⚠️ Ведёт таймер, а не requestAnimationFrame: rAF замирает в скрытой вкладке и
+   тикает рывками — фейд растягивался бы вдвое. Шаг считается от времени,
+   поэтому пропущенный тик его не удлиняет. */
+const TUNE=window.TUNE={fade:1600};
+let tuneKill=null;
+function tuneIn(){
+  if(tuneIn.done || MUTED || !au.src) return;
+  tuneIn.done=true;
+  au.volume=0;
+  const from=performance.now();
+  tuneKill=()=>{ tuneKill=null; au.volume=1; };
+  const step=()=>{
+    if(!tuneKill){ clearInterval(tick); return; }   /* фейд сняли (пауза от человека) */
+    const k=Math.max(0,Math.min(1,(performance.now()-from)/TUNE.fade));
+    au.volume=Math.pow(k,.7);                       /* по мощности, а не линейно: линейный слышится провалом */
+    if(k>=1){ clearInterval(tick); au.removeEventListener('timeupdate',step); tuneKill(); }
+  };
+  const tick=setInterval(step,25);
+  /* ⚠️ Тот же шаг слушает и САМО АУДИО: таймеры в фоновой вкладке душат до одного
+     тика в минуту, и фейд мог зависнуть на нуле — интерфейс показывал бы «играет»
+     при полной тишине. События проигрывания в это время идут как обычно. */
+  au.addEventListener('timeupdate',step);
+}
+window.tuneIn=tuneIn;
+/* Сводка по звуку для панели ?diag=1 — чтобы «нет звука» диагностировалось
+   скриншотом с телефона, а не переписыванием кода. Три причины немоты
+   различаются здесь однозначно: карта не загрузилась (по file:// её режет CORS),
+   браузер не дал автоплей (ждём касания) или громкость осталась на нуле. */
+window.__audio=function(){
+  return {map:Object.keys(AUDIO_MAP||{}).length, src:!!au.src, muted:au.muted,
+    vol:+au.volume.toFixed(2), paused:au.paused, blocked:autoBlocked, mk:mkOn};
+};
 function tryPlay(){
   if(!au.src) return;
+  /* громкость снимаем ДО play(): иначе первые миллисекунды трека прозвучат
+     в полную громкость и фейд начнётся щелчком. Не вышло — возвращаем. */
+  const fadeIn = !tuneIn.done && !MUTED;
+  if(fadeIn) au.volume=0;
   const p=au.play();
+  if(p && p.then) p.then(()=>tuneIn(),()=>{});        /* фейд — только на удавшемся старте */
   if(p && p.catch) p.catch(()=>{
+    if(fadeIn && !tuneIn.done) au.volume=1;
     autoBlocked=true; state.playing=false; setPlayIcon('▶');
   });
 }
@@ -4357,6 +4511,9 @@ function startPlay(){ state.playing=true; setPlayIcon('❚❚'); clearInterval(p
      чтобы интерфейс не выглядел зависшим */
   progTimer=setInterval(()=>{ if(!seeking){ prog=(prog+100/DUR/10)%100; drawProg(); } },100); }
 function stopPlay(){ state.playing=false; setPlayIcon('▶'); clearInterval(progTimer); progTimer=null; autoBlocked=false;
+  /* пауза посреди настройки волны снимает и помехи, и приглушение музыки:
+     иначе человек снял бы паузу и услышал трек на нулевой громкости */
+  if(tuneKill) tuneKill();
   au.pause(); if(mkOn&&mk){ try{ mk.pause(); }catch(_){} } }
 function drawProg(totalSec){ /* длительность превью дробная (29.98) — округляем, иначе остаток печатается как -0:28.976961 */
   const total=Math.max(1,Math.round(totalSec||curDur)); const c=Math.floor(prog/100*total), r=total-c;
@@ -4377,7 +4534,6 @@ function seekCommit(){ if(!seeking) return; seeking=false;
   if(mkOn && mk && curDur){ try{ mk.seekToTime(prog/100*curDur); }catch(_){} return; }
   if(au.src && au.duration && isFinite(au.duration)) au.currentTime=prog/100*au.duration; }
 document.addEventListener('mouseup',seekCommit); document.addEventListener('touchend',seekCommit);
-function ensureCtx(){ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended')actx.resume(); }
 /* ── ХАПТИКА (2026-08-25) ─────────────────────────────────────────────
    Тактильность — принцип №4 продукта, и щелчки шкалы её главный носитель.
    Вибрация вешается на ТЕ ЖЕ вызовы, что уже дают звук: сигналы обязаны
@@ -4392,8 +4548,14 @@ const HAPTIC_OK = typeof navigator!=='undefined' && typeof navigator.vibrate==='
   && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 function haptic(pattern){ if(!HAPTIC_OK || !state.haptics) return; try{ navigator.vibrate(pattern); }catch(_){} }
 
-function tick(){ haptic(8);            /* детент шкалы — самый частый и самый короткий */
-  if(!actx)return; const o=actx.createOscillator(),g=actx.createGain(); o.type='sine'; o.frequency.value=1320; g.gain.value=.03; g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+.05); o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime+.06); }
+/* ⚠️ Синтезированных звуков интерфейса в продукте больше НЕТ (решение Николая
+   2026-09-07: «уберём эти системные звуки»). Щелчок шкалы был синусом 1320 Гц
+   на WebAudio; вместе с ним удалены AudioContext и ensureCtx(), который
+   разблокировал его первым касанием, — держать звуковой контекст ради тишины
+   незачем. Музыка идёт своим путём, через <audio>/MusicKit, и не затронута.
+   Тактильность на месте: те же события по-прежнему отдают вибрацией, и она
+   остаётся единственным носителем «щелчка». */
+function tick(){ haptic(8); }          /* детент шкалы — самый частый и самый короткий */
 
 /* ---- 3D globe on canvas ----
    Размер больше не фиксирован: глобус занимает столько, сколько ему отдала раскладка.
@@ -4580,7 +4742,7 @@ function placeAtPoint(cx,cy){
     if(dd<bd){ bd=dd; best=p; } }
   return (best && bd<=gTapR()) ? best : null;
 }
-function gdown(e){ ensureCtx(); gDrag=true; gMoved=false; gAmt=0; vYaw=0; vPitch=0; gTargetPlace=null; gmode='drag';
+function gdown(e){ gDrag=true; gMoved=false; gAmt=0; vYaw=0; vPitch=0; gTargetPlace=null; gmode='drag';
   gx=pX(e); gy=pY(e); gDownX=gx; gDownY=gy; gt=performance.now();
   document.getElementById('globe').classList.add('grabbing'); e.preventDefault(); }
 function gmoveH(e){ if(!gDrag)return; const x=pX(e),y=pY(e),now=performance.now(),dx=x-gx,dy=y-gy,dt=Math.max(8,now-gt);
@@ -4787,7 +4949,7 @@ function applyTx(t,trans){ reel.style.transition=trans?('transform '+DIAL.snapMs
   if(ci!==lastTickIdx){ lastTickIdx=ci; tick(); }
   if(trans) curveRun(DIAL.snapMs+40); else { cancelAnimationFrame(curveRaf); curveReel(t); } }
 const dial=document.getElementById('dialWrap');
-function ddown(e){ ensureCtx(); cancelAnimationFrame(raf); dragging=true; dragMoved=false; vel=0; lastX=pX(e); lastT=performance.now();
+function ddown(e){ cancelAnimationFrame(raf); dragging=true; dragMoved=false; vel=0; lastX=pX(e); lastT=performance.now();
   e.preventDefault(); }
 function dmove(e){ if(!dragging)return; const x=pX(e),now=performance.now(),dx=x-lastX,dt=Math.max(8,now-lastT);
   tx=clampTx(tx+dx*DIAL.sens); vel=dx*DIAL.sens/dt; lastX=x; lastT=now; if(Math.abs(dx)>1)dragMoved=true; applyTx(tx,false); e.preventDefault&&e.preventDefault(); }
@@ -5191,6 +5353,30 @@ function fitYear(){
   /* раскладка ещё не посчитана (скрытая вкладка, первый кадр) — нули игнорируем */
   if(max<=0||w<=0) return;
   el.style.fontSize=Math.round(YEAR_BASE*max/w)+'px';
+
+  /* ── НИЖНЯЯ ЛИНИЯ ПАРЫ ПЛИТОК (правка Николая 2026-09-07) ────────────
+     Год прижат к нижней кромке плитки с 2026-08-26, но равнялся по БОКСУ, а
+     у NDOT под базовой линией остаётся пустое место (замер: 16 px при кегле 42).
+     Из-за него «1960s» заканчивался на 13 px выше последнего чипа соседней
+     плитки — «выравнивание нарушено по нижнему краю».
+     Считаем ink-низ по метрикам ЖИВОГО шрифта и опускаем блок ровно на
+     расхождение: числа не вшиты, кегль здесь подбирается, а NDOT может
+     подмениться фолбэком (Doto) с другими метриками. */
+  const dec=el.parentElement;
+  dec.style.marginBottom='0px';
+  const cs2=getComputedStyle(el);
+  const g=(fitYear._g ||= document.createElement('canvas').getContext('2d'));
+  g.font=cs2.fontWeight+' '+cs2.fontSize+' '+cs2.fontFamily;
+  const m=g.measureText(el.textContent||'0');
+  const LH=parseFloat(cs2.lineHeight)||parseFloat(cs2.fontSize);
+  const asc=m.fontBoundingBoxAscent, desc=m.fontBoundingBoxDescent;
+  if(!asc||!isFinite(LH)) return;
+  const r=el.getBoundingClientRect();
+  const ink=r.top+(LH-(asc+desc))/2+asc+(m.actualBoundingBoxDescent||0);
+  const chips=document.querySelectorAll('#stats .st-chip');
+  const target=chips.length ? chips[chips.length-1].getBoundingClientRect().bottom : r.bottom;
+  const d=target-ink;
+  if(isFinite(d) && Math.abs(d)<80) dec.style.marginBottom=(-d).toFixed(2)+'px';
 }
 /* нажатие на источник — тот же язык, что у иконок в iOS */
 attachPress(document.querySelector('.head .ctl-activity'));
@@ -5583,7 +5769,7 @@ window.__globe3d = {
     riseAt:     ['старт шара', 0,   3500, 10, 2200],
     warmAt:     ['тепло',      200, 5000, 10, 3150],
     assembleAt: ['интерфейс',  300, 6000, 10, 4250],
-    startTop:   ['верх шара', 0.2, 0.9, 0.01, 0.52]
+    startTop:   ['верх шара', 0.2, 0.9, 0.01, 0.59]
   };
   var BEZ_PRESETS = {
     'drawer':  [0.32, 0.72, 0, 1],
@@ -5812,6 +5998,13 @@ if (location.search.indexOf('diag') === -1) return;
       rect('#tags'), rect('.globe'), rect('#dialWrap'), rect('#track'), rect('.dice-f'),
       'NDOT ' + (document.fonts && document.fonts.check('38px "NDOT 47"') ? 'ok' : 'НЕ ЗАГРУЖЕН') +
         '   WebGL ' + (webgl ? 'ok' : 'НЕТ') + '   globe3d ' + (window.__globe3d ? 'ok' : 'нет'),
+      (function () {
+        if (!window.__audio) return 'звук: сводка недоступна (основной скрипт не дошёл)';
+        var a = window.__audio();
+        return 'звук: карта ' + a.map + ' ключей   src ' + (a.src ? 'ok' : 'НЕТ') +
+          '   громкость ' + a.vol + (a.muted ? ' (muted)' : '') +
+          '   ' + (a.paused ? 'пауза' : 'играет') + (a.blocked ? '   автоплей ЗАБЛОКИРОВАН' : '');
+      })(),
       'ошибки: ' + (window.__err && window.__err.length ? window.__err.join(' | ') : 'нет')
     ].join('\n');
   };
@@ -5819,6 +6012,7 @@ if (location.search.indexOf('diag') === -1) return;
   addEventListener('resize', draw);
   if (window.visualViewport) visualViewport.addEventListener('resize', draw);
   setTimeout(draw, 1500); setTimeout(draw, 4000);
+  setInterval(draw, 1000);   /* строка звука живая: состояние плеера меняется после отрисовки панели */
 })();
 </script>
 </body>
